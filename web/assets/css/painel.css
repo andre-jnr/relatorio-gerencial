@@ -784,3 +784,11 @@ a { color: inherit; }
 .selo--super { background: var(--accent-soft); color: var(--accent); }
 .selo--ativo { background: color-mix(in srgb, var(--good) 13%, transparent); color: var(--good); }
 .selo--inativo { background: var(--critical-soft); color: var(--critical); }
+
+/* logo do Frigorífico Amazonas (no lugar do "RG") */
+.rail-logo { width: 46px; height: 46px; padding: 0; border-radius: 50%; background: none; display: block; transition: transform .2s var(--ease-out); }
+.rail-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.rail-logo:active { transform: scale(.95); }
+.login-logo { width: 72px; height: auto; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .35)); }
+.login-marca { font-size: 17px; gap: 14px; }
+@media (max-width: 860px) { .rail-logo { width: 36px; height: 36px; } }

@@ -33,7 +33,11 @@
         "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES"
       }
     },
-    { "slug": "ponta_negra", "nome": "Ponta Negra", "servidor": "server_pn", "banco": "sismoura" },
+    {
+      "slug": "ponta_negra", "nome": "Ponta Negra", "servidor": "server_pn", "banco": "sismoura",
+      "_lancamentos_ignorados": "90097: R$ 500.000,00 pago em 01/10/2026 (DESPESA COM INVESTIMENTO DA LOJA, terreno do estacionamento). Entra só no fechamento geral, em outro projeto.",
+      "lancamentos_ignorados": [90097]
+    },
     { "slug": "morada_do_sol", "nome": "Morada do Sol", "servidor": "serverad", "banco": "sismoura_srv" },
     { "slug": "monte_das_oliveiras", "nome": "Monte das Oliveiras", "servidor": "200.150.200.180", "banco": "SISMOURA_SRV_MONTE" },
     {

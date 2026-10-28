@@ -275,7 +275,8 @@ def dados_unidade(u):
         "tem_estoque": planilhas.tem_estoque(u),
         "layout_cd": bool(u.get("layout_cd")),
         "conta_boi": u.get("conta_boi"),
-        "tem_desconsiderados": bool(CFG.get("contas_ignoradas") or u.get("lancamentos_ignorados")),
+        # link "Lançamentos desconsiderados": loja com lançamentos ignorados, ou o CD (onde há FALCAO INDUSTRIA NF)
+        "tem_desconsiderados": bool(u.get("lancamentos_ignorados") or (u.get("layout_cd") and CFG.get("contas_ignoradas"))),
         "atualizado_em": agora_iso(),
         "meses": registros,
     }

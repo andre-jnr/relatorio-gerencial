@@ -428,7 +428,7 @@ const Painel = (() => {
     const dt = new Date(data.atualizado_em);
     qs('rodape-atualizado').textContent = `Dados consultados no banco em ${dt.toLocaleString('pt-BR')}`;
     const link = qs('link-desconsiderados');
-    link.hidden = !(data.layout_cd && data.tem_desconsiderados);
+    link.hidden = !data.tem_desconsiderados;
     link.href = `pagamentos.html?visao=desconsiderados&slug=${encodeURIComponent(state.slug)}&ano=${state.ano}&mes=${state.mes}`;
     const restos = qs('link-restos');
     restos.hidden = !opcaoBoi();

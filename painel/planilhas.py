@@ -1,11 +1,15 @@
 """Planilhas lidas pelo painel (relidas sozinhas quando são salvas):
 
 - classificação dos pagamentos (PAGAMENTOS, CLASSIFICAÇÃO, GRUPO, PLANO DE CONTAS)
-- vendas/estoque de unidade com "planilha_vendas" (CD): abas VENDAS e ESTOQUE
+- vendas/estoque de unidade com "planilha_vendas" (CD): abas VENDAS e ESTOQUE.
+  Pode ser trocada pelo painel (superusuário); a anterior vai para dados/backups/.
 """
 import io
 import logging
+import os
+import shutil
 import threading
+import time
 
 from openpyxl import load_workbook
 
@@ -138,6 +142,14 @@ def _atualizar_planilha_vendas(u):
     if atual and atual["lido_em"] == mod:
         return False
 
+    meses, estoque, ignoradas = _ler_planilha_vendas(u, arq)
+    _planilhas_vendas[str(arq)] = {"lido_em": mod, "meses": meses, "estoque": estoque}
+    log.info("Planilha de vendas de %s carregada: %d mês(es)%s", u["nome"], len(meses),
+             f" ({ignoradas} linha(s) ignorada(s))" if ignoradas else "")
+    return True
+
+
+def _ler_planilha_vendas(u, arq):
     aba = u.get("aba_vendas") or "VENDAS"
     linhas = _ler_aba(arq, aba)
     i_cab, cab = _achar_cabecalho(linhas, ["TIPO", "VLR FINAL", "MES", "ANO"])
@@ -170,11 +182,42 @@ def _atualizar_planilha_vendas(u):
         else:
             ignoradas += 1
 
-    estoque = _ler_estoque(u, arq)
-    _planilhas_vendas[str(arq)] = {"lido_em": mod, "meses": meses, "estoque": estoque}
-    log.info("Planilha de vendas de %s carregada: %d mês(es)%s", u["nome"], len(meses),
-             f" ({ignoradas} linha(s) ignorada(s))" if ignoradas else "")
-    return True
+    return meses, _ler_estoque(u, arq), ignoradas
+
+
+def substituir_planilha_vendas(u, conteudo):
+    """Troca a planilha de vendas da unidade pela enviada, guardando a anterior em dados/backups/.
+
+    A nova só entra se puder ser lida como a anterior (abas e colunas); senão nada muda.
+    Devolve o resumo da planilha nova e o nome do backup."""
+    arq = caminho(u["planilha_vendas"])
+    temp = arq.with_name(f".{arq.stem}.enviada{arq.suffix}")
+    with _trava:
+        temp.write_bytes(conteudo)
+        try:
+            try:
+                meses, estoque, _ = _ler_planilha_vendas(u, temp)
+            except ErroPlanilha as e:  # a mensagem fala do arquivo temporário: troca por "enviada"
+                raise ErroPlanilha(str(e).replace(f"A planilha {temp.name}", "A planilha enviada").rstrip(".")) from e
+            except Exception as e:  # noqa: BLE001  arquivo que não é um .xlsx válido
+                raise ErroPlanilha("o arquivo enviado não é uma planilha do Excel (.xlsx) válida") from e
+            if not meses:
+                raise ErroPlanilha(f"a aba {u.get('aba_vendas') or 'VENDAS'} do arquivo enviado não tem nenhuma linha válida")
+            backup = None
+            if arq.exists():
+                pasta = caminho("dados/backups")
+                pasta.mkdir(parents=True, exist_ok=True)
+                backup = pasta / f"{arq.stem}_{time.strftime('%Y-%m-%d_%H%M%S')}{arq.suffix}"
+                shutil.copy2(arq, backup)
+            try:
+                os.replace(temp, arq)  # troca de uma vez: quem estiver lendo nunca vê o arquivo pela metade
+            except PermissionError as e:
+                raise ErroPlanilha(f"{arq.name} está aberta em outro programa no servidor (Excel?). Feche e envie de novo") from e
+        finally:
+            temp.unlink(missing_ok=True)
+    ultimo = max(meses)
+    return {"meses": len(meses), "ultimo_mes": f"{ultimo[1]:02d}/{ultimo[0]}", "tem_estoque": bool(estoque),
+            "backup": backup.name if backup else None}
 
 
 def _ler_estoque(u, arq):

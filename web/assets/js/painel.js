@@ -266,6 +266,31 @@ const Painel = (() => {
       : `${fmt.monthLong(state.mes)[0].toUpperCase()}${fmt.monthLong(state.mes).slice(1)} de ${state.ano}${ehMesAtual(state.ano, state.mes) ? ' · mês em andamento' : ''}`;
     qs('head-sub').textContent = periodo;
     document.title = `${data.unidade} · Relatório gerencial`;
+    qs('acao-planilha').hidden = !data.planilha_vendas; // o botão em si só aparece para o superusuário
+  }
+
+  // ---------------- envio da planilha de vendas (CD) ----------------
+  async function enviarPlanilha(arquivo) {
+    const btn = qs('planilha-btn');
+    const slug = state.slug;
+    if (!/\.xlsx$/i.test(arquivo.name)) { PDF.aviso('Escolha uma planilha do Excel (.xlsx).', 'erro'); return; }
+    btn.disabled = true;
+    PDF.aviso(`Enviando ${arquivo.name}…`);
+    try {
+      const res = await fetch(`/api/planilha-vendas/${encodeURIComponent(slug)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+        body: arquivo,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.erro || `Erro ${res.status}`);
+      PDF.aviso(`Planilha atualizada: ${body.meses} meses, até ${body.ultimo_mes}.${body.backup ? ' A anterior foi guardada no backup.' : ''}`, 'ok');
+      if (state.slug === slug) await mostrar(slug, true);
+    } catch (e) {
+      PDF.aviso(e instanceof TypeError ? MSG_SEM_SERVIDOR : e.message, 'erro');
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   // ---------------- cartões ----------------
@@ -514,6 +539,13 @@ const Painel = (() => {
     iniciarTema();
 
     qs('pdf-btn').onclick = gerarPDF;
+    const arquivoPlanilha = qs('planilha-arquivo');
+    qs('planilha-btn').onclick = () => arquivoPlanilha.click();
+    arquivoPlanilha.onchange = () => {
+      const arquivo = arquivoPlanilha.files[0];
+      arquivoPlanilha.value = ''; // permite escolher o mesmo arquivo de novo
+      if (arquivo) enviarPlanilha(arquivo);
+    };
     qs('refresh-btn').onclick = async () => {
       const b = qs('refresh-btn');
       b.disabled = true; b.classList.add('is-busy');

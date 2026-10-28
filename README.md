@@ -25,6 +25,9 @@ O endereço principal continua só com as lojas de `LOJAS`, e o `/cd/` mostra s�
 O login é o mesmo nos dois endereços. O instalador pergunta se o CD deve ser instalado e grava a resposta no `.env`.
 O CD precisa da planilha `dados/base_dados_cd.xlsx`, que não vai para o git: copie a planilha para o servidor junto com o projeto.
 
+**Trocar a planilha pelo painel:** no CD, o superusuário vê um botão de envio (seta para cima) ao lado do Atualizar. A planilha enviada só é aceita se tiver a aba VENDAS com as colunas MÊS, ANO, TIPO e VLR FINAL e pelo menos uma linha válida; senão a atual continua em uso.
+A anterior é guardada em `dados/backups/base_dados_cd_AAAA-MM-DD_HHMMSS.xlsx`, e os números do CD e da Parque Dez + Flores passam a usar a nova na hora. Para voltar atrás, copie um backup de volta para `dados/base_dados_cd.xlsx`. O limite é 20 MB, e o log registra quem enviou.
+
 A **Parque Dez + Flores** lê as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso ela funciona sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
 
 ## Onde fica cada coisa

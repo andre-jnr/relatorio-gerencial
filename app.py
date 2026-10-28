@@ -54,7 +54,9 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,     # o JavaScript da página não lê o cookie
     SESSION_COOKIE_SAMESITE="Strict",  # outro site não consegue usar a sessão
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+    MAX_CONTENT_LENGTH=20 * 1024 * 1024,  # maior envio aceito (planilha do CD)
 )
+TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 # ------------------------------------------------------------------
@@ -174,8 +176,10 @@ def exigir_login():
     request.usuario = u
     if (caminho.startswith("/api/usuarios") or caminho.rsplit("/", 1)[-1] in PAGINAS_SUPER) and not u["super"]:
         return _erro("Só o superusuário pode gerenciar usuários.", 403) if caminho.startswith("/api/") else redirect("/")
-    # alterações só por JSON: um formulário de outro site não consegue enviar JSON sem permissão (CSRF)
-    if request.method in ("POST", "PUT", "PATCH", "DELETE") and not request.is_json:
+    # alterações só por JSON (ou a planilha .xlsx no envio da planilha): um formulário de outro site
+    # não consegue enviar esses tipos sem permissão (CSRF)
+    envio_planilha = caminho.startswith("/api/planilha-vendas/") and request.mimetype == TIPO_XLSX
+    if request.method in ("POST", "PUT", "PATCH", "DELETE") and not (request.is_json or envio_planilha):
         return _erro("Requisição inválida.", 400)
     return None
 
@@ -327,6 +331,36 @@ def pagamentos(slug):
     ano, mes = _ano_mes(permite_ano_inteiro=restos or desconsiderados)
     return _consultar(u, f"lista|{slug}|{ano}|{mes}|{restos}|{desconsiderados}",
                       lambda: relatorios.lista_pagamentos(u, ano, mes, restos, desconsiderados), "Lista de pagamentos")
+
+
+@app.put("/api/planilha-vendas/<slug>")
+def planilha_vendas(slug):
+    """Superusuário troca a planilha de vendas (ex.: base_dados_cd.xlsx); a anterior vai para dados/backups/."""
+    u = _loja_ou_404(slug)
+    if not u.get("planilha_vendas"):
+        return _erro(f"A loja {u['nome']} não usa planilha de vendas.", 400)
+    if not request.usuario["super"]:
+        return _erro("Só o superusuário pode trocar a planilha.", 403)
+    conteudo = request.get_data(cache=False)
+    if not conteudo:
+        return _erro("Nenhum arquivo enviado.", 400)
+    try:
+        resumo = planilhas.substituir_planilha_vendas(u, conteudo)
+    except ErroPlanilha as e:
+        log.warning("Planilha de %s recusada (enviada por '%s'): %s", u["nome"], request.usuario["login"], e)
+        return _erro(f"Planilha não aceita: {e}. A planilha anterior continua em uso.", 400)
+    except Exception:  # noqa: BLE001
+        log.exception("Erro ao trocar a planilha de %s", u["nome"])
+        return _erro("Erro inesperado ao salvar a planilha. A anterior continua em uso. Veja o log.", 500)
+    _cache.clear()  # vendas, transferências do CD e estoque mudaram para todas as lojas que usam a planilha
+    log.info("Planilha de %s trocada por '%s' (%d meses, até %s). Backup: %s", u["nome"], request.usuario["login"],
+             resumo["meses"], resumo["ultimo_mes"], resumo["backup"] or "nenhum (não havia planilha)")
+    return _json(resumo)
+
+
+@app.errorhandler(413)
+def grande_demais(_):
+    return _erro("Arquivo grande demais (máximo de 20 MB).", 413)
 
 
 @app.get("/api/pdf/iniciar")

@@ -1,0 +1,48 @@
+{
+  "_leia": "Cadastro das lojas e regras dos relatórios. Não coloque senhas aqui: elas ficam no .env. Quais lojas aparecem no painel é decidido por LOJAS no .env.",
+
+  "contas_excluidas_pagamentos": [
+    "PAGAMENTO DA LOJAS GARCIA E LOBO",
+    "DESPESA JC GARCIA",
+    "EMPRESTIMO NA CAIXA",
+    "MORADA DO SOL - SEGUROS",
+    "MORADA SO SOL JUROS DE EMPRESTIMOS",
+    "EMPRESTIMO BANCO DO BRASIL",
+    "INVESTIMENTO/ COMPRA DE IMÓVEL",
+    "DISTRIBUIÇÃO DE SÓCIOS",
+    "LOJA FLORES FORNECEDOR"
+  ],
+
+  "contas_ignoradas": [
+    "FALCAO INDUSTRIA NF"
+  ],
+
+  "planilha_classificacao": "dados/classificação_pagamentos.xlsx",
+
+  "unidades": [
+    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura" },
+    {
+      "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
+      "vendas_adicionais": [
+        { "nome": "Flores", "servidor": "server", "banco": "sismoura", "credencial": "FLORES" }
+      ],
+      "incluir_contas": ["LOJA FLORES FORNECEDOR"],
+      "nome_vendas": "Parque Dez",
+      "transferencias_cd": {
+        "unidade": "cd", "cliente": "FLORES",
+        "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES"
+      }
+    },
+    { "slug": "ponta_negra", "nome": "Ponta Negra", "servidor": "server_pn", "banco": "sismoura" },
+    { "slug": "morada_do_sol", "nome": "Morada do Sol", "servidor": "serverad", "banco": "sismoura_srv" },
+    { "slug": "monte_das_oliveiras", "nome": "Monte das Oliveiras", "servidor": "200.150.200.180", "banco": "SISMOURA_SRV_MONTE" },
+    {
+      "slug": "cd", "nome": "CD", "servidor": "serverprq10", "banco": "sismoura_cd",
+      "planilha_vendas": "dados/base_dados_cd.xlsx",
+      "fator_contas": { "ENERGIA ELETRICA": 0.6 },
+      "lancamentos_ignorados": [1987],
+      "layout_cd": true,
+      "conta_boi": "FORNECEDOR DE BOI"
+    }
+  ]
+}

@@ -5,3 +5,4 @@ logs/
 servidor/.node
 dados/usuarios.db
 dados/.chave_sessao
+dados/base_dados_cd.xlsx

@@ -87,7 +87,8 @@ const Sessao = (() => {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
     pop.querySelector('[data-acao="senha"]').onclick = () => { fechar(); abrirMinhaSenha(); };
     pop.querySelector('[data-acao="sair"]').onclick = async () => {
-      try { await enviar('/api/sair', 'POST'); } finally { location.href = '/login'; }
+      // quem sai do painel do CD volta para ele ao entrar de novo
+      try { await enviar('/api/sair', 'POST'); } finally { location.href = CONFIG.escopo ? '/login?volta=%2Fcd%2F' : '/login'; }
     };
   }
 

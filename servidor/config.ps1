@@ -8,3 +8,10 @@ $ENTRADA      = "app.py"        # arquivo principal, relativo à raiz do projeto
 $ARGUMENTOS   = "--producao"     # argumentos do modo produção (ex.: --producao) ou ""
 $ROTA_TESTE   = "/api/ping"     # rota que responde 200 com o sistema no ar (ex.: /, /api/saude)
 $PASTAS_DADOS = @("dados")           # pastas onde o sistema grava; a conta SYSTEM recebe escrita (logs já incluso)
+
+# Perguntas de sim/não feitas na instalação (opcional). A resposta vai para o .env como 1 ou 0.
+# Caminho: endereço extra mostrado no fim da instalação quando a resposta é sim.
+$PERGUNTAS = @(
+    @{ Variavel = "CD_SUBCAMINHO"; Caminho = "/cd/"
+       Pergunta = "Instalar também o painel do CD em /cd/? (só no servidor da Parque Dez, onde fica o banco do CD)" }
+)

@@ -2,8 +2,12 @@
 // Endpoints da API (app.py) e formatação pt-BR compartilhada.
 // Não usar `this` no fmt: as funções são passadas soltas como callback.
 // ============================================================
+// Páginas abertas em /cd/ formam o painel do CD (CD_SUBCAMINHO no .env do servidor)
+const ESCOPO = location.pathname.startsWith('/cd/') ? 'cd' : '';
+
 const CONFIG = {
-  unidadesUrl: '/api/unidades',
+  escopo: ESCOPO,
+  unidadesUrl: '/api/unidades' + (ESCOPO ? `?escopo=${ESCOPO}` : ''),
   dadosUrl: (slug) => `/api/dados/${encodeURIComponent(slug)}`,
   contaContabilUrl: (slug, ano, mes) => `/api/conta-contabil/${encodeURIComponent(slug)}?ano=${ano}&mes=${mes}`,
   pagamentosUrl: (slug, ano, mes) => `/api/pagamentos/${encodeURIComponent(slug)}?ano=${ano}&mes=${mes}`,

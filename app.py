@@ -22,7 +22,7 @@ from flask import Flask, Response, abort, redirect, request, send_from_directory
 
 from painel import pdf, planilhas, relatorios, usuarios
 from painel.banco import ErroBanco
-from painel.config import CACHE_MINUTOS, LOJAS, LOJAS_DESCONHECIDAS, PORTA, RAIZ, loja
+from painel.config import CACHE_MINUTOS, LOJAS, LOJAS_CD, LOJAS_DESCONHECIDAS, PORTA, RAIZ, loja
 from painel.planilhas import ErroPlanilha
 from painel.usuarios import ErroUsuario
 
@@ -92,7 +92,7 @@ def _erro(msg, status):
 
 
 def _planilhas_ok():
-    if planilhas.atualizar(LOJAS):
+    if planilhas.atualizar(LOJAS + LOJAS_CD):
         _cache.clear()  # planilha alterada: o cache de todas as lojas fica velho
 
 
@@ -155,7 +155,7 @@ def _abrir_sessao(u):
 @app.before_request
 def exigir_login():
     caminho = request.path
-    if caminho in LIVRES or caminho.startswith("/assets/"):
+    if caminho in LIVRES or caminho.startswith(("/assets/", "/cd/assets/")):
         return None
     # o Chrome invisível do PDF abre a página com um token de uso único (só a partir desta máquina)
     token = request.args.get("acesso")
@@ -172,7 +172,7 @@ def exigir_login():
         volta = request.full_path.rstrip("?") if caminho != "/" else ""
         return redirect("/login" + (f"?volta={quote(volta)}" if volta else ""))
     request.usuario = u
-    if (caminho.startswith("/api/usuarios") or caminho.lstrip("/") in PAGINAS_SUPER) and not u["super"]:
+    if (caminho.startswith("/api/usuarios") or caminho.rsplit("/", 1)[-1] in PAGINAS_SUPER) and not u["super"]:
         return _erro("Só o superusuário pode gerenciar usuários.", 403) if caminho.startswith("/api/") else redirect("/")
     # alterações só por JSON: um formulário de outro site não consegue enviar JSON sem permissão (CSRF)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and not request.is_json:
@@ -294,7 +294,12 @@ def ping():
 @app.get("/api/unidades")
 def unidades():
     # só slug e nome: servidor, banco e usuários nunca vão para o navegador
-    return _json([{"slug": u["slug"], "nome": u["nome"]} for u in LOJAS])
+    lista = LOJAS
+    if request.args.get("escopo") == "cd":  # páginas em /cd/
+        if not LOJAS_CD:
+            return _erro("O painel do CD não está habilitado neste servidor (CD_SUBCAMINHO no .env).", 404)
+        lista = LOJAS_CD
+    return _json([{"slug": u["slug"], "nome": u["nome"]} for u in lista])
 
 
 @app.get("/api/dados/<slug>")
@@ -359,7 +364,8 @@ def pdf_iniciar():
     for t in [t for t, v in _tokens_pdf.items() if v[2] < time.time()]:
         _tokens_pdf.pop(t, None)
     _tokens_pdf[token] = (u["id"], session.get("versao"), time.time() + 300)
-    job = pdf.iniciar(f"http://127.0.0.1:{PORTA}/{pagina}?pdf=1&acesso={token}&" + "&".join(partes))
+    prefixo = "cd/" if q.get("escopo") == "cd" and LOJAS_CD else ""
+    job = pdf.iniciar(f"http://127.0.0.1:{PORTA}/{prefixo}{pagina}?pdf=1&acesso={token}&" + "&".join(partes))
     if not job:
         _tokens_pdf.pop(token, None)
         return _json({"erro": "Chrome ou Edge não encontrado neste computador.", "sem_navegador": True}, 501)
@@ -406,6 +412,37 @@ def assets(arquivo):
     return send_from_directory(WEB / "assets", arquivo)
 
 
+# Painel do CD em /cd/ (CD_SUBCAMINHO=1 no .env): as mesmas páginas, com caminhos relativos;
+# o format.js reconhece o /cd/ e pede só o CD à API
+def _exigir_cd():
+    if not LOJAS_CD:
+        abort(404)
+
+
+@app.get("/cd")
+def cd_raiz():
+    _exigir_cd()
+    return redirect("/cd/")
+
+
+@app.get("/cd/")
+def cd_inicio():
+    _exigir_cd()
+    return inicio()
+
+
+@app.get("/cd/<nome>")
+def cd_pagina(nome):
+    _exigir_cd()
+    return pagina(nome)
+
+
+@app.get("/cd/assets/<path:arquivo>")
+def cd_assets(arquivo):
+    _exigir_cd()
+    return assets(arquivo)
+
+
 @app.after_request
 def cabecalhos(resp):
     resp.headers["Cache-Control"] = "no-store"
@@ -432,6 +469,8 @@ if __name__ == "__main__":
     if not LOJAS:
         log.warning("Nenhuma loja habilitada: preencha LOJAS no .env.")
     log.info("Lojas habilitadas: %s", ", ".join(u["nome"] for u in LOJAS) or "nenhuma")
+    if LOJAS_CD:
+        log.info("Painel do CD habilitado em /cd/")
     if not usuarios.existe_algum():
         log.warning("Nenhum usuário cadastrado: crie o superusuário com  python -m painel.usuarios criar-super")
     if producao:

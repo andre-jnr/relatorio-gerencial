@@ -40,10 +40,15 @@ _pedidas = [s.strip() for s in os.getenv("LOJAS", "").split(",") if s.strip()]
 LOJAS = [TODAS[s] for s in _pedidas if s in TODAS]
 LOJAS_DESCONHECIDAS = [s for s in _pedidas if s not in TODAS]
 
+# CD_SUBCAMINHO=1: o CD fica num painel separado em /cd/, na mesma porta (o banco do CD fica no
+# servidor da Parque Dez). Ele não entra no seletor da página principal, a não ser que esteja em LOJAS.
+CD_SUBCAMINHO = os.getenv("CD_SUBCAMINHO", "").strip().lower() in ("1", "s", "sim", "true")
+LOJAS_CD = [TODAS["cd"]] if CD_SUBCAMINHO and "cd" in TODAS else []
+
 
 def loja(slug):
     """Loja habilitada pelo slug, ou None (loja fora do .env é tratada como inexistente)."""
-    return next((u for u in LOJAS if u["slug"] == slug), None)
+    return next((u for u in LOJAS + LOJAS_CD if u["slug"] == slug), None)
 
 
 def credenciais(fonte):

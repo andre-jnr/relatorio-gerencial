@@ -89,7 +89,7 @@ const PDF = (() => {
   // opts.nome: nome do arquivo; opts.imprimir: plano B (diálogo de impressão) sem Chrome/Edge
   async function baixar({ pagina, params, nome, imprimir }) {
     aviso('Gerando o PDF… pode levar alguns segundos.');
-    const query = new URLSearchParams({ pagina, ...params });
+    const query = new URLSearchParams({ pagina, ...params, ...(CONFIG.escopo ? { escopo: CONFIG.escopo } : {}) });
     const inicio = await fetch(`/api/pdf/iniciar?${query}`, { cache: 'no-store' });
     const job = await inicio.json().catch(() => null);
     if (!inicio.ok || !job || !job.id) {

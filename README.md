@@ -18,6 +18,13 @@ Uma loja fora da lista não aparece no seletor e o banco dela **nunca é consult
 Além disso, o painel só consulta a loja aberta na tela. Ele não carrega as outras em segundo plano.
 Depois de mudar o `.env`, reinicie o painel. No servidor, rode `servidor\instalar.bat` de novo.
 
+### Painel do CD em `/cd/`
+
+O banco do CD fica no mesmo servidor da Parque Dez. Com `CD_SUBCAMINHO=1` no `.env`, o mesmo sistema (porta 3007) também serve o painel do CD em `http://SERVIDOR:3007/cd/`.
+O endereço principal continua só com as lojas de `LOJAS`, e o `/cd/` mostra só o CD. Com `CD_SUBCAMINHO=0`, o `/cd/` responde 404.
+O login é o mesmo nos dois endereços. O instalador pergunta se o CD deve ser instalado e grava a resposta no `.env`.
+O CD precisa da planilha `dados/base_dados_cd.xlsx`, que não vai para o git: copie a planilha para o servidor junto com o projeto.
+
 A **Parque Dez + Flores** lê as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso ela funciona sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
 
 ## Onde fica cada coisa
@@ -87,6 +94,7 @@ Uma conta paga que não esteja na planilha de classificação entra como despesa
 2. Tenha o Python 3.10 ou mais novo instalado (marque *Add python.exe to PATH*). Para o botão **Gerar PDF** funcionar, o servidor também precisa do Chrome ou do Edge.
 3. Crie o `.env` a partir do `.env.example`.
 4. Clique duas vezes em `servidor\instalar.bat` e confirme o pedido de administrador.
+   O instalador pergunta se deve instalar também o painel do CD em `/cd/`. Responda **S** só no servidor da Parque Dez. Ao reinstalar, Enter mantém a resposta anterior.
 
 O painel sobe sozinho ao ligar o computador (tarefa agendada "Relatorio gerencial lojas (3007)") e reinicia se cair.
 Ele fica acessível em http://NOME-DO-SERVIDOR:3007. Log: `logs\servidor.log`.

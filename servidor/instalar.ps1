@@ -34,6 +34,17 @@ function Ler-Env($nome, $padrao) {
     if ($valor) { return $valor } else { return $padrao }
 }
 
+function Gravar-Env($nome, $valor) {
+    # troca a linha da variável (ou acrescenta no fim), mantendo o resto do .env como está
+    $linhas = @(Get-Content $envArq -Encoding UTF8)
+    $achou = $false
+    $linhas = @($linhas | ForEach-Object { if ($_ -match "^\s*$nome\s*=") { $achou = $true; "$nome=$valor" } else { $_ } })
+    if (-not $achou) { $linhas += "$nome=$valor" }
+    [IO.File]::WriteAllLines($envArq, [string[]]$linhas, (New-Object Text.UTF8Encoding $false))
+}
+
+function Sim($valor) { "$valor".Trim().ToLower() -in "1", "s", "sim", "true" }
+
 function Processo-Na-Porta($porta) {
     $con = Get-NetTCPConnection -LocalPort $porta -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($con) { Get-CimInstance Win32_Process -Filter "ProcessId = $($con.OwningProcess)" }
@@ -66,6 +77,23 @@ if (-not (Test-Path $envArq) -and (Test-Path $exemplo)) {
 $porta = [int](Ler-Env "PORT" "$PORTA_PADRAO")
 Ok "porta $porta"
 $nomeTarefa = "$NOME_SISTEMA ($porta)"
+
+# Perguntas de sim/não do config.ps1: Enter mantém a resposta da instalação anterior
+$caminhosExtras = @()
+if ($PERGUNTAS) {
+    Passo "Opções da instalação"
+    foreach ($p in $PERGUNTAS) {
+        $padrao = if (Sim (Ler-Env $p.Variavel "0")) { "S" } else { "N" }
+        do {
+            $r = (Read-Host "    $($p.Pergunta) (S/N) [$padrao]").Trim().ToUpper()
+            if (-not $r) { $r = $padrao }
+        } until ($r -in "S", "N", "SIM", "NAO", "NÃO")
+        $valor = if ($r.StartsWith("S")) { "1" } else { "0" }
+        Gravar-Env $p.Variavel $valor
+        Ok "$($p.Variavel)=$valor $(if ($valor -eq '1') { '(sim)' } else { '(não)' })"
+        if ($valor -eq "1" -and $p.Caminho) { $caminhosExtras += $p.Caminho }
+    }
+}
 
 # ---------- 2. porta (antes das dependências: numa reinstalação os arquivos podem estar em uso) ----------
 Passo "Conferindo a porta $porta"
@@ -111,9 +139,14 @@ if ($TIPO -eq "python") {
         if ($LASTEXITCODE -ne 0) { Falha "não consegui criar o .venv." }
     }
     # --only-binary: só instala pacotes prontos, nunca tenta compilar (o que exigiria o Visual C++)
-    & $pythonVenv -m pip install --disable-pip-version-check -q --only-binary :all: -r (Join-Path $raiz "requirements.txt")
+    # Rede instável (IncompleteRead, conexão interrompida): o pip repete e, se ainda falhar, tenta de novo do zero.
+    for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
+        & $pythonVenv -m pip install --disable-pip-version-check -q --only-binary :all: --retries 10 --timeout 60 -r (Join-Path $raiz "requirements.txt")
+        if ($LASTEXITCODE -eq 0) { break }
+        if ($tentativa -lt 3) { Aviso "a instalação das dependências falhou (tentativa $tentativa de 3). Tentando de novo..."; Start-Sleep -Seconds 5 }
+    }
     if ($LASTEXITCODE -ne 0) {
-        Falha "falha ao instalar as dependências (requirements.txt). Se algum pacote não tem versão pronta para este Python, troque o pacote ou use outra versão do Python."
+        Falha "falha ao instalar as dependências (requirements.txt). Se o erro fala em conexão (IncompleteRead, Connection broken, timeout), é a internet do servidor: rode de novo. Se diz que não há versão compatível, algum pacote não tem versão pronta para este Python: use outra versão do Python."
     }
     Ok (& $pythonVenv --version)
 } else {
@@ -187,4 +220,9 @@ else { Aviso "responde no localhost, mas não pelo IP da rede. Confira se o sist
 Write-Host "`nPronto! Acesse de outra máquina da rede:" -ForegroundColor Green
 Write-Host "  http://$($env:COMPUTERNAME):$porta"
 $ips | ForEach-Object { Write-Host "  http://${_}:$porta" }
+foreach ($c in $caminhosExtras) {
+    $urlExtra = "http://localhost:$porta$c"
+    try { Invoke-WebRequest $urlExtra -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host "  http://$($env:COMPUTERNAME):$porta$c" }
+    catch { Aviso "$urlExtra não respondeu. Veja o log: $log" }
+}
 Write-Host "Log: $log"

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Entrar · Relatório gerencial</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2226%22 fill=%22%2313866b%22/><path d=%22M28 66V48M44 66V34M60 66V42M76 66V26%22 stroke=%22white%22 stroke-width=%228%22 stroke-linecap=%22round%22/></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/painel.css" />
+<script>
+  // tema lembrado do painel, antes de desenhar (sem piscar)
+  try { const t = localStorage.getItem('painel.theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) { /* sem storage */ }
+</script>
+</head>
+<body class="login-body">
+  <main class="login">
+    <section class="login-arte" aria-hidden="true">
+      <div class="login-marca"><span class="rail-logo">RG</span><span>Relatório gerencial</span></div>
+      <div class="login-barras">
+        <span style="--h:42%;--d:0ms"></span><span style="--h:58%;--d:60ms"></span><span style="--h:51%;--d:120ms"></span>
+        <span style="--h:72%;--d:180ms"></span><span style="--h:64%;--d:240ms"></span><span style="--h:86%;--d:300ms"></span>
+        <span style="--h:78%;--d:360ms"></span>
+      </div>
+      <p class="login-frase">Vendas, pagamentos e resultado das lojas,<br />direto do banco, numa tela só.</p>
+    </section>
+
+    <section class="login-form-wrap">
+      <form class="login-form" id="form-login" novalidate>
+        <span class="eyebrow">Acesso restrito</span>
+        <h1>Entrar</h1>
+        <p class="login-sub">Use o login e a senha cadastrados pelo administrador do painel.</p>
+
+        <label class="campo">
+          <span>Usuário</span>
+          <input type="text" id="login" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus />
+        </label>
+        <label class="campo">
+          <span>Senha</span>
+          <span class="campo-senha">
+            <input type="password" id="senha" name="password" autocomplete="current-password" required />
+            <button type="button" class="ver-senha" id="ver-senha" aria-label="Mostrar a senha" aria-pressed="false">
+              <svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </span>
+        </label>
+
+        <p class="login-erro" id="erro" role="alert" hidden></p>
+        <button type="submit" class="btn btn--primary btn--largo" id="entrar"><span>Entrar</span></button>
+      </form>
+    </section>
+  </main>
+
+<script>
+(() => {
+  const form = document.getElementById('form-login');
+  const erro = document.getElementById('erro');
+  const btn = document.getElementById('entrar');
+  const senha = document.getElementById('senha');
+
+  document.getElementById('ver-senha').onclick = (e) => {
+    const ver = senha.type === 'password';
+    senha.type = ver ? 'text' : 'password';
+    e.currentTarget.setAttribute('aria-pressed', String(ver));
+    e.currentTarget.setAttribute('aria-label', ver ? 'Esconder a senha' : 'Mostrar a senha');
+  };
+
+  // só volta para endereços deste painel
+  function destino() {
+    const v = new URLSearchParams(location.search).get('volta') || '/';
+    return v.startsWith('/') && !v.startsWith('//') ? v : '/';
+  }
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    erro.hidden = true;
+    const login = document.getElementById('login').value.trim();
+    if (!login || !senha.value) { erro.textContent = 'Informe o usuário e a senha.'; erro.hidden = false; return; }
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Entrando…';
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, senha: senha.value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.erro || `Erro ${res.status}`);
+      location.replace(destino());
+    } catch (err) {
+      erro.textContent = err instanceof TypeError ? 'Servidor do painel indisponível. Tente de novo.' : err.message;
+      erro.hidden = false;
+      senha.select();
+      form.classList.remove('tremer'); void form.offsetWidth; form.classList.add('tremer');
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Entrar';
+    }
+  };
+})();
+</script>
+</body>
+</html>

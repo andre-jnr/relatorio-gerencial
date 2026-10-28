@@ -57,7 +57,23 @@ Uma conta paga que não esteja na planilha de classificação entra como despesa
 - As senhas ficam só no `.env`, que não vai para o git nem para o navegador. A Flores usa `FLORES_DB_USUARIO` e `FLORES_DB_SENHA`.
 - O navegador recebe só o slug e o nome das lojas. Servidor, banco e usuário nunca saem do servidor. Mensagens de erro mostram só o motivo resumido; o detalhe fica em `logs\servidor.log`.
 - Só são servidas as três páginas e a pasta `web/assets`. O `.env`, `config/`, `dados/` e o código respondem 404.
-- O painel não tem login. Mantenha o acesso restrito à rede interna (regra 5 das orientações).
+- Mantenha o acesso restrito à rede interna (regra 5 das orientações). O painel usa `http` (sem `https`), então não deve ser exposto na internet.
+
+## Login e usuários
+
+- Todas as páginas e a API exigem login. Sem sessão, a página vai para `/login` e a API responde 401. Ficam livres só a tela de login, os arquivos de `web/assets` e o `/api/ping` (usado pelo instalador).
+- Os usuários ficam em `dados/usuarios.db` (SQLite). As senhas são guardadas só em hash (scrypt) e ninguém consegue ver a senha de outro usuário.
+- O **superusuário** vê o item **Usuários** no menu lateral. Ali ele cadastra usuários, redefine senhas, ativa e desativa, dá ou tira o acesso de superusuário e exclui.
+- O painel sempre mantém pelo menos um superusuário ativo, e ninguém consegue desativar ou excluir o próprio usuário.
+- Qualquer usuário troca a própria senha pelo menu do avatar, no canto de baixo do menu lateral.
+- Desativar um usuário ou redefinir a senha dele encerra as sessões abertas na hora.
+- O login não diferencia maiúsculas nem acentos: `André`, `andre` e `ANDRE` são o mesmo usuário. A sessão dura 12 horas.
+- Depois de 5 tentativas erradas seguidas, o login e o IP ficam bloqueados por 5 minutos.
+- O log registra entradas, recusas e alterações de usuários, mas nunca as senhas.
+- O superusuário inicial é **André**, com login `andre`.
+- Se o `dados/usuarios.db` se perder, crie outro superusuário pelo terminal, na pasta do projeto: `python -m painel.usuarios criar-super`.
+- O cookie de login é assinado com `SECRET_KEY` do `.env`. Sem ela, o painel cria uma chave em `dados/.chave_sessao`.
+- O gerador de PDF entra no painel com um token de uso único, válido por 5 minutos e aceito só a partir do próprio servidor.
 
 ## Usar no próprio computador (teste)
 
@@ -67,7 +83,7 @@ Uma conta paga que não esteja na planilha de classificação entra como despesa
 
 ## Publicar no servidor (Windows)
 
-1. Copie a pasta do projeto para o servidor.
+1. Copie a pasta do projeto para o servidor, **incluindo `dados/usuarios.db`**, que tem os usuários. Se o arquivo não for junto, crie o superusuário lá com `python -m painel.usuarios criar-super`.
 2. Tenha o Python 3.10 ou mais novo instalado (marque *Add python.exe to PATH*). Para o botão **Gerar PDF** funcionar, o servidor também precisa do Chrome ou do Edge.
 3. Crie o `.env` a partir do `.env.example`.
 4. Clique duas vezes em `servidor\instalar.bat` e confirme o pedido de administrador.

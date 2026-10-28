@@ -3,3 +3,5 @@
 __pycache__/
 logs/
 servidor/.node
+dados/usuarios.db
+dados/.chave_sessao

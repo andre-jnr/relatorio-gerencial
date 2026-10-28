@@ -7,4 +7,4 @@ $TIPO         = "python"           # "python" ou "node"
 $ENTRADA      = "app.py"        # arquivo principal, relativo à raiz do projeto (ex.: app.py, server/index.js)
 $ARGUMENTOS   = "--producao"     # argumentos do modo produção (ex.: --producao) ou ""
 $ROTA_TESTE   = "/api/ping"     # rota que responde 200 com o sistema no ar (ex.: /, /api/saude)
-$PASTAS_DADOS = @()                  # pastas onde o sistema grava; a conta SYSTEM recebe escrita (logs já incluso)
+$PASTAS_DADOS = @("dados")           # pastas onde o sistema grava; a conta SYSTEM recebe escrita (logs já incluso)

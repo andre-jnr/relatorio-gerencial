@@ -10,7 +10,10 @@
     "EMPRESTIMO BANCO DO BRASIL",
     "INVESTIMENTO/ COMPRA DE IMÓVEL",
     "DISTRIBUIÇÃO DE SÓCIOS",
-    "LOJA FLORES FORNECEDOR"
+    "LOJA FLORES FORNECEDOR",
+    "LOJA FLORES - REFORMA/OBRA",
+    "LOJA FLORES - CONTA DE ENERGIA",
+    "LOJA FLORES - SALÁRIOS"
   ],
 
   "contas_ignoradas": [
@@ -26,7 +29,8 @@
       "vendas_adicionais": [
         { "nome": "Flores", "servidor": "server", "banco": "sismoura", "credencial": "FLORES" }
       ],
-      "incluir_contas": ["LOJA FLORES FORNECEDOR"],
+      "_incluir_contas": "Contas da Flores pagas pelo banco da Parque Dez: ficam fora da Parque Dez sozinha e entram aqui.",
+      "incluir_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
       "nome_vendas": "Parque Dez",
       "transferencias_cd": {
         "unidade": "cd", "cliente": "FLORES",

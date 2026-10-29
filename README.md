@@ -13,7 +13,7 @@ Usa as mesmas regras e funções do *Relatório gerencial testes*, exceto o Cons
 LOJAS=parque_dez,parque_dez_flores
 ```
 
-As lojas disponíveis estão cadastradas em `config/unidades.json`: `parque_dez`, `parque_dez_flores`, `ponta_negra`, `morada_do_sol`, `monte_das_oliveiras` e `cd`.
+As lojas disponíveis estão cadastradas em `config/unidades.json`: `parque_dez`, `parque_dez_flores`, `flores`, `ponta_negra`, `morada_do_sol`, `monte_das_oliveiras` e `cd`.
 Uma loja fora da lista não aparece no seletor e o banco dela **nunca é consultado** (a API responde 404).
 Além disso, o painel só consulta a loja aberta na tela. Ele não carrega as outras em segundo plano.
 Depois de mudar o `.env`, reinicie o painel. No servidor, rode `servidor\instalar.bat` de novo.
@@ -28,7 +28,17 @@ O CD precisa da planilha `dados/base_dados_cd.xlsx`, que não vai para o git: co
 **Trocar a planilha pelo painel:** no CD, o superusuário vê um botão de envio (seta para cima) ao lado do Atualizar. A planilha enviada só é aceita se tiver a aba VENDAS com as colunas MÊS, ANO, TIPO e VLR FINAL e pelo menos uma linha válida; senão a atual continua em uso.
 A anterior é guardada em `dados/backups/base_dados_cd_AAAA-MM-DD_HHMMSS.xlsx`, e os números do CD e da Parque Dez + Flores passam a usar a nova na hora. Para voltar atrás, copie um backup de volta para `dados/base_dados_cd.xlsx`. O limite é 20 MB, e o log registra quem enviou.
 
-A **Parque Dez + Flores** lê as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso ela funciona sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
+A **Parque Dez + Flores** e a **Flores** leem as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso funcionam sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
+
+A **Flores** pega vendas e transferências do banco da Flores. Os pagamentos vêm do banco da Parque Dez, só das contas LOJA FLORES (`pagamentos_de` e `somente_contas` em `config/unidades.json`).
+As contas a pagar do próprio banco da Flores são ignoradas, porque também são lançadas na Parque Dez. Assim, Parque Dez + Flores = Parque Dez + Flores somadas.
+
+**Transferências das outras unidades para a Flores:** elas chegam com o CNPJ da Parque Dez, na conta TRANSFERENCIA ENTRE CD (LOJAS).
+O painel procura FLORES, LARANJEIRA e AEROCLUB no rodapé da nota (infCpl do XML em `Entrada_Produto`) e na observação da conta a pagar. A busca ignora espaços, maiúsculas e acentos.
+As transferências encontradas saem da Parque Dez (aparecem em "Lançamentos desconsiderados") e entram na Flores, com o rodapé na observação. Na Parque Dez + Flores, tudo entra.
+O painel também lê as notas emitidas pelas unidades de `emissores` (rodapé em `Fiscal_NF.Dados_Adicionais_Manuais`). Assim, a Flores e a Parque Dez + Flores recebem, pela data de emissão, as notas que a Parque Dez ainda não lançou como conta a pagar.
+Quando a nota é lançada e paga na Parque Dez, ela deixa de vir pela nota emitida e passa a contar pela conta a pagar, então não entra duas vezes. A comparação é feita pela chave da NF-e.
+As palavras e a data inicial ficam em `transferencias_marcadas` no `config/unidades.json`. As transferências do CD para a Flores ainda não têm marcação e continuam vindo da planilha do CD.
 
 ## Onde fica cada coisa
 

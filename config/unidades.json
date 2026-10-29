@@ -22,16 +22,38 @@
 
   "planilha_classificacao": "dados/classificação_pagamentos.xlsx",
 
+  "transferencias_marcadas": {
+    "_leia": "Transferências de outras unidades para a Flores são faturadas no CNPJ da Parque Dez; só o rodapé da nota (infCpl do XML em Entrada_Produto) ou a observação da conta a pagar dizem que são da Flores. A comparação ignora espaços, maiúsculas e acentos: AEROCLUB pega aeroclube, aero clube, aeroclub; LARANJEIRA pega Laranjeiras e Nova Laranjeiras. Cada unidade diz se exclui ou inclui essas transferências.",
+    "conta": "TRANSFERENCIA ENTRE CD (LOJAS)",
+    "_desde": "A Flores abriu em setembro de 2026: notas anteriores nem são lidas (o XML é pesado).",
+    "desde": "2026-08-01",
+    "_emissores": "Unidades cujas notas de transferência emitidas são lidas (rodapé em Fiscal_NF.Dados_Adicionais_Manuais), para pegar também as notas que a Parque Dez ainda não lançou. O CD fica de fora: as transferências do CD para a Flores vêm da planilha do CD (transferencias_cd), e lê-las também contaria duas vezes.",
+    "emissores": ["morada_do_sol", "ponta_negra", "monte_das_oliveiras"],
+    "palavras": ["FLORES", "LARANJEIRA", "AEROCLUB"]
+  },
+
   "unidades": [
-    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura" },
+    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir" },
     {
       "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
       "vendas_adicionais": [
         { "nome": "Flores", "servidor": "server", "banco": "sismoura", "credencial": "FLORES" }
       ],
       "_incluir_contas": "Contas da Flores pagas pelo banco da Parque Dez: ficam fora da Parque Dez sozinha e entram aqui.",
+      "transferencias_marcadas": "completar",
       "incluir_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
       "nome_vendas": "Parque Dez",
+      "transferencias_cd": {
+        "unidade": "cd", "cliente": "FLORES",
+        "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES"
+      }
+    },
+    {
+      "slug": "flores", "nome": "Flores", "servidor": "server", "banco": "sismoura", "credencial": "FLORES",
+      "_pagamentos_de": "Vendas e transferências vêm do banco da Flores. As contas pagas da Flores são lançadas no banco da Parque Dez, nas contas LOJA FLORES; as contas a pagar do banco da Flores são ignoradas (podem estar duplicadas na Parque Dez).",
+      "pagamentos_de": { "servidor": "serverprq10", "banco": "sismoura" },
+      "somente_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
+      "transferencias_marcadas": "incluir",
       "transferencias_cd": {
         "unidade": "cd", "cliente": "FLORES",
         "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES"

@@ -32,8 +32,43 @@
     "palavras": ["FLORES", "LARANJEIRA", "AEROCLUB"]
   },
 
+  "transferencias_estoque": {
+    "_leia": "Saídas de estoque da Parque Dez com este motivo (Mov_Desc, comparado sem espaços nem acentos) são mercadoria mandada para a Flores sem nota, a preço de custo. Parque Dez: soma no Total transf. Flores: entra como pagamento de transferência nesta conta. Parque Dez + Flores: fica de fora (movimentação interna).",
+    "motivo": "TRANSF LOJA FLORES",
+    "conta": "TRANSFERENCIA ENTRE CD (LOJAS)"
+  },
+
+  "recibos": {
+    "_leia": "Recibos pagos em dinheiro no caixa da loja (planilha_recibos da unidade). Cada recibo vai para a conta da primeira regra que casar (categoria, subcategoria e, se houver, alguma palavra na descrição ou no fornecedor; 'sem' exclui). As contas são as da planilha de classificação, que dá o plano, o grupo e a classificação. Sem regra: conta_padrao.",
+    "aba": "Lançamentos",
+    "ignorar_categorias": ["Caixa / Ajustes"],
+    "conta_padrao": "OUTRAS DESPESAS",
+    "regras": [
+      { "categoria": "A classificar", "palavras": ["COMPRAS", "QUEIROZ", "REGIONAL"], "conta": "PAGAMENTO DE FORNECEDORES" },
+      { "categoria": "A classificar", "conta": "OUTRAS DESPESAS" },
+      { "categoria": "Mercadoria", "subcategoria": "Hortifrúti (FLV)", "conta": "PAGAMENTO DE FLV" },
+      { "categoria": "Mercadoria", "subcategoria": "Bebidas e água", "conta": "PAGAMENTO DE BEBIDAS" },
+      { "categoria": "Mercadoria", "subcategoria": "Insumos padaria", "conta": "DESPESA COM PADARIA" },
+      { "categoria": "Mercadoria", "conta": "PAGAMENTO DE FORNECEDORES" },
+      { "categoria": "Pessoal", "subcategoria": "Alimentação e transporte", "palavras": ["VALE TRANSPORTE"], "sem": ["ALMOCO"], "conta": "VALE TRANSPORTE" },
+      { "categoria": "Pessoal", "subcategoria": "Alimentação e transporte", "conta": "REFEIÇÃO P/ FUNCIONARIOS" },
+      { "categoria": "Pessoal", "subcategoria": "Diárias e pagamentos", "conta": "DIARIAS" },
+      { "categoria": "Pessoal", "subcategoria": "Segurança", "conta": "SEGURANÇA" },
+      { "categoria": "Veículos", "subcategoria": "Combustível", "conta": "COMBUSTIVEL E LUBRIFICANTES" },
+      { "categoria": "Veículos", "conta": "MANUTENÇÃO E CONSERV. DE VEÍCULOS" },
+      { "categoria": "Manutenção predial", "conta": "MANUTENÇÃO NA LOJA" },
+      { "categoria": "Obra / Reforma", "conta": "DESPESA REFORMA DA LOJA" },
+      { "categoria": "Material de consumo", "subcategoria": "Limpeza", "conta": "MATERIAIS DE LIMPEZA" },
+      { "categoria": "Material de consumo", "subcategoria": "Embalagens", "conta": "EMBALAGENS E SACOLAS" },
+      { "categoria": "Material de consumo", "subcategoria": "EPI", "conta": "EPI" },
+      { "categoria": "Material de consumo", "subcategoria": "Escritório", "conta": "MATERIAL DE ESCRITÓRIO E IMPRESSO" },
+      { "categoria": "Frete", "conta": "FRETES E CARRETOS" },
+      { "categoria": "Utilidades", "subcategoria": "Telefonia / internet", "conta": "TELEFONES" }
+    ]
+  },
+
   "unidades": [
-    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir" },
+    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada" },
     {
       "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
       "vendas_adicionais": [
@@ -41,6 +76,7 @@
       ],
       "_incluir_contas": "Contas da Flores pagas pelo banco da Parque Dez: ficam fora da Parque Dez sozinha e entram aqui.",
       "transferencias_marcadas": "completar",
+      "planilha_recibos": "dados/recibos_loja_flores.xlsx",
       "incluir_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
       "nome_vendas": "Parque Dez",
       "transferencias_cd": {
@@ -54,6 +90,9 @@
       "pagamentos_de": { "servidor": "serverprq10", "banco": "sismoura" },
       "somente_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
       "transferencias_marcadas": "incluir",
+      "transferencias_estoque": "recebida",
+      "_planilha_recibos": "Recibos pagos em dinheiro no caixa da Flores (não estão em nenhum banco).",
+      "planilha_recibos": "dados/recibos_loja_flores.xlsx",
       "transferencias_cd": {
         "unidade": "cd", "cliente": "FLORES",
         "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES"

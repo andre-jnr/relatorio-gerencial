@@ -266,25 +266,33 @@ const Painel = (() => {
       : `${fmt.monthLong(state.mes)[0].toUpperCase()}${fmt.monthLong(state.mes).slice(1)} de ${state.ano}${ehMesAtual(state.ano, state.mes) ? ' · mês em andamento' : ''}`;
     qs('head-sub').textContent = periodo;
     document.title = `${data.unidade} · Relatório gerencial`;
-    qs('acao-planilha').hidden = !data.planilha_vendas; // o botão em si só aparece para o superusuário
+    // o botão em si só aparece para o superusuário
+    qs('acao-planilha').hidden = !(data.planilha_vendas || data.planilha_recibos);
+    qs('planilha-btn').title = data.planilha_vendas
+      ? 'Enviar uma nova planilha de vendas (base_dados_cd.xlsx). A atual vai para o backup.'
+      : 'Enviar uma nova planilha de recibos da loja. A atual vai para o backup.';
   }
 
-  // ---------------- envio da planilha de vendas (CD) ----------------
+  // ---------------- envio da planilha de vendas (CD) ou de recibos (Flores) ----------------
   async function enviarPlanilha(arquivo) {
     const btn = qs('planilha-btn');
     const slug = state.slug;
+    const tipo = datasets[slug] && datasets[slug].planilha_vendas ? 'vendas' : 'recibos';
     if (!/\.xlsx$/i.test(arquivo.name)) { PDF.aviso('Escolha uma planilha do Excel (.xlsx).', 'erro'); return; }
     btn.disabled = true;
     PDF.aviso(`Enviando ${arquivo.name}…`);
     try {
-      const res = await fetch(`/api/planilha-vendas/${encodeURIComponent(slug)}`, {
+      const res = await fetch(`/api/planilha-${tipo}/${encodeURIComponent(slug)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
         body: arquivo,
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.erro || `Erro ${res.status}`);
-      PDF.aviso(`Planilha atualizada: ${body.meses} meses, até ${body.ultimo_mes}.${body.backup ? ' A anterior foi guardada no backup.' : ''}`, 'ok');
+      const resumo = tipo === 'vendas'
+        ? `${body.meses} meses, até ${body.ultimo_mes}`
+        : `${body.recibos} recibos, ${fmt.currencyCents(body.total)}, até ${body.ultimo_dia}`;
+      PDF.aviso(`Planilha atualizada: ${resumo}.${body.backup ? ' A anterior foi guardada no backup.' : ''}`, 'ok');
       if (state.slug === slug) await mostrar(slug, true);
     } catch (e) {
       PDF.aviso(e instanceof TypeError ? MSG_SEM_SERVIDOR : e.message, 'erro');

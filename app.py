@@ -178,7 +178,7 @@ def exigir_login():
         return _erro("Só o superusuário pode gerenciar usuários.", 403) if caminho.startswith("/api/") else redirect("/")
     # alterações só por JSON (ou a planilha .xlsx no envio da planilha): um formulário de outro site
     # não consegue enviar esses tipos sem permissão (CSRF)
-    envio_planilha = caminho.startswith("/api/planilha-vendas/") and request.mimetype == TIPO_XLSX
+    envio_planilha = caminho.startswith(("/api/planilha-vendas/", "/api/planilha-recibos/")) and request.mimetype == TIPO_XLSX
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and not (request.is_json or envio_planilha):
         return _erro("Requisição inválida.", 400)
     return None
@@ -333,28 +333,38 @@ def pagamentos(slug):
                       lambda: relatorios.lista_pagamentos(u, ano, mes, restos, desconsiderados), "Lista de pagamentos")
 
 
-@app.put("/api/planilha-vendas/<slug>")
-def planilha_vendas(slug):
-    """Superusuário troca a planilha de vendas (ex.: base_dados_cd.xlsx); a anterior vai para dados/backups/."""
+PLANILHAS_ENVIO = {  # tipo na URL -> (campo da unidade, função que troca, descrição)
+    "vendas": ("planilha_vendas", planilhas.substituir_planilha_vendas, "planilha de vendas"),
+    "recibos": ("planilha_recibos", planilhas.substituir_planilha_recibos, "planilha de recibos"),
+}
+
+
+@app.put("/api/planilha-<tipo>/<slug>")
+def enviar_planilha(tipo, slug):
+    """Superusuário troca a planilha de vendas (base_dados_cd.xlsx) ou de recibos da loja;
+    a anterior vai para dados/backups/."""
+    if tipo not in PLANILHAS_ENVIO:
+        abort(404)
+    campo, substituir, descricao = PLANILHAS_ENVIO[tipo]
     u = _loja_ou_404(slug)
-    if not u.get("planilha_vendas"):
-        return _erro(f"A loja {u['nome']} não usa planilha de vendas.", 400)
+    if not u.get(campo):
+        return _erro(f"A loja {u['nome']} não usa {descricao}.", 400)
     if not request.usuario["super"]:
         return _erro("Só o superusuário pode trocar a planilha.", 403)
     conteudo = request.get_data(cache=False)
     if not conteudo:
         return _erro("Nenhum arquivo enviado.", 400)
     try:
-        resumo = planilhas.substituir_planilha_vendas(u, conteudo)
+        resumo = substituir(u, conteudo)
     except ErroPlanilha as e:
-        log.warning("Planilha de %s recusada (enviada por '%s'): %s", u["nome"], request.usuario["login"], e)
+        log.warning("%s de %s recusada (enviada por '%s'): %s", descricao.capitalize(), u["nome"], request.usuario["login"], e)
         return _erro(f"Planilha não aceita: {e}. A planilha anterior continua em uso.", 400)
     except Exception:  # noqa: BLE001
-        log.exception("Erro ao trocar a planilha de %s", u["nome"])
+        log.exception("Erro ao trocar a %s de %s", descricao, u["nome"])
         return _erro("Erro inesperado ao salvar a planilha. A anterior continua em uso. Veja o log.", 500)
-    _cache.clear()  # vendas, transferências do CD e estoque mudaram para todas as lojas que usam a planilha
-    log.info("Planilha de %s trocada por '%s' (%d meses, até %s). Backup: %s", u["nome"], request.usuario["login"],
-             resumo["meses"], resumo["ultimo_mes"], resumo["backup"] or "nenhum (não havia planilha)")
+    _cache.clear()  # a planilha vale para todas as lojas que a usam (ex.: CD e Parque Dez + Flores)
+    log.info("%s de %s trocada por '%s' (%s). Backup: %s", descricao.capitalize(), u["nome"], request.usuario["login"],
+             {k: v for k, v in resumo.items() if k != "backup"}, resumo["backup"] or "nenhum (não havia planilha)")
     return _json(resumo)
 
 

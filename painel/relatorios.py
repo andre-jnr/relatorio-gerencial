@@ -14,6 +14,8 @@ Regras por unidade (config/unidades.json):
   vendas_adicionais            vendas de outros servidores somadas às da unidade (Parque Dez + Flores)
   pagamentos_de                servidor/banco de onde vêm as contas pagas, no lugar do da unidade (Flores)
   somente_contas               só estas contas entram nos pagamentos (mesmo se estiverem nas excluídas)
+  transferencias_estoque       "enviada" (soma no Total transf.) ou "recebida" (vira pagamento) as saídas de
+                               estoque com o motivo da regra de mesmo nome (TRANSF LOJA FLORES)
   transferencias_marcadas      "excluir" ou "incluir" as transferências recebidas cuja nota (rodapé do XML)
                                ou observação cita outra loja (palavras na regra de mesmo nome, no topo)
   transferencias_cd            transferências do CD (planilha) lançadas como pagamento da loja
@@ -166,6 +168,30 @@ def transf_nao_lancadas(u):
                           "emissao": emissao, "valor": num(n["Total_NF"]), "cfop": n["CFOP"],
                           "rodape": " ".join((n["Rodape"] or "").split())})
     return notas
+
+
+# Saídas de estoque com o motivo de "transferencias_estoque" (ex.: TRANSF LOJA FLORES na Parque Dez):
+# mercadoria que a Parque Dez manda para a Flores sem nota (mesmo CNPJ). Valor a preço de custo.
+# Unidade "enviada": soma no Total transf. Unidade "recebida": vira pagamento de transferência.
+SQL_MOV_ESTOQUE = """DECLARE @ini DATETIME = ?; DECLARE @fim DATETIME = ?;
+SELECT m.Codigo, m.Data, COUNT(*) AS Itens, SUM(mi.Qtde * mi.Preco_Custo) AS Valor
+FROM Movimentacao m
+INNER JOIN Movimentacao_Item mi ON mi.Movimentacao = m.Codigo
+INNER JOIN Mov_Desc md ON md.Codigo = mi.Motivo
+WHERE m.Data >= @ini AND m.Data < @fim AND ISNULL(m.Cancelada, 'N') <> 'S'
+  AND REPLACE(ISNULL(md.Descricao, ''), ' ', '') COLLATE Latin1_General_CI_AI = __MOTIVO__
+GROUP BY m.Codigo, m.Data;"""
+
+
+def mov_estoque(u, ini, fim):
+    """Movimentações de estoque transferidas entre as lojas no período [ini, fim): [{codigo, data, itens, valor}]."""
+    regra = CFG.get("transferencias_estoque") or {}
+    if not (regra.get("motivo") and u.get("transferencias_estoque") in ("enviada", "recebida")):
+        return []
+    sql = SQL_MOV_ESTOQUE.replace("__MOTIVO__", _sql_texto(chave_conta(regra["motivo"])))
+    linhas = consultar(_fonte_pagamentos(u), sql, (_dt(ini), _dt(fim)))
+    return [{"codigo": int(l["Codigo"]), "data": l["Data"].date() if isinstance(l["Data"], datetime) else l["Data"],
+             "itens": int(l["Itens"]), "valor": num(l["Valor"])} for l in linhas]
 
 
 def _sql_codigos(codigos):
@@ -332,11 +358,27 @@ def dados_unidade(u):
         if m:
             m["transf"], m["movimento"] = num(l["Total_Transferencias"]), True
 
+    # saídas de estoque para a outra loja (sem nota): enviadas somam no Total transf., recebidas viram pagamento
+    estoque = mov_estoque(u, ini, fim)
+    if u.get("transferencias_estoque") == "enviada":
+        for x in estoque:
+            m = meses.get((x["data"].year, x["data"].month))
+            if m:
+                m["transf"] += x["valor"]
+                m["movimento"] = True
+
     chave_boi = chave_conta(u["conta_boi"]) if u.get("conta_boi") else None
     # notas de transferência para a loja ainda sem conta a pagar: entram pela data de emissão
     conta_transf = (_regra_transf()[0] or {}).get("conta", "")
     extras = [{"Ano": n["emissao"].year, "Mes": n["emissao"].month, "Origem": "transferencia", "Conta": conta_transf,
                "EmissaoAnterior": 0, "Valor_Pago": n["valor"]} for n in transf_nao_lancadas(u)]
+    # recibos pagos em dinheiro no caixa da loja (planilha)
+    extras += [{"Ano": x["data"].year, "Mes": x["data"].month, "Origem": "mesmo_mes", "Conta": x["conta"],
+                "EmissaoAnterior": 0, "Valor_Pago": x["valor"]} for x in planilhas.recibos(u)]
+    if u.get("transferencias_estoque") == "recebida":
+        conta_estoque = (CFG.get("transferencias_estoque") or {}).get("conta", "")
+        extras += [{"Ano": x["data"].year, "Mes": x["data"].month, "Origem": "transferencia", "Conta": conta_estoque,
+                    "EmissaoAnterior": 0, "Valor_Pago": x["valor"]} for x in estoque]
     for l in r["pagamentos"] + extras:
         m = mes_de(l)
         if not m:
@@ -413,6 +455,7 @@ def dados_unidade(u):
         "slug": u["slug"],
         "unidade": u["nome"],
         "planilha_vendas": bool(u.get("planilha_vendas")),
+        "planilha_recibos": bool(u.get("planilha_recibos")),  # o superusuário pode enviar uma nova pelo painel
         "tem_estoque": planilhas.tem_estoque(u),
         "layout_cd": bool(u.get("layout_cd")),
         "conta_boi": u.get("conta_boi"),
@@ -542,6 +585,16 @@ def pagamentos_por_conta(u, ano, mes, sem_boi_anterior=False):
         {"Conta": conta_transf, "Anterior": n["valor"] if dentro(n["emissao"], ini_ant, fim_ant) else 0,
          "Atual": n["valor"] if dentro(n["emissao"], ini_atu, fim_atu) else 0}
         for n in transf_nao_lancadas(u)]
+    linhas_sql += [
+        {"Conta": x["conta"], "Anterior": x["valor"] if dentro(x["data"], ini_ant, fim_ant) else 0,
+         "Atual": x["valor"] if dentro(x["data"], ini_atu, fim_atu) else 0}
+        for x in planilhas.recibos(u)]
+    if u.get("transferencias_estoque") == "recebida":
+        conta_estoque = (CFG.get("transferencias_estoque") or {}).get("conta", "")
+        linhas_sql += [
+            {"Conta": conta_estoque, "Anterior": x["valor"] if dentro(x["data"], ini_ant, fim_ant) else 0,
+             "Atual": x["valor"] if dentro(x["data"], ini_atu, fim_atu) else 0}
+            for x in mov_estoque(u, ini_ant, fim_atu)]
 
     # agrupa pela conta normalizada e encaixa cada conta no plano/grupo da planilha
     por_conta = {}
@@ -675,6 +728,26 @@ def lista_pagamentos(u, ano, mes, restos_boi=False, desconsiderados=False):
                     "observacao": f"NF {n['nf']} (CFOP {n['cfop']}) ainda sem conta a pagar na Parque Dez [rodapé da nota: {n['rodape']}]",
                     "origem": "Transferência (nota emitida)", "emissao": n["emissao"].isoformat(), "pagamento": None,
                     "vencimento": None, "valor_pago": _r2(n["valor"]),
+                })
+        if u.get("transferencias_estoque") == "recebida":
+            regra = CFG.get("transferencias_estoque") or {}
+            for x in mov_estoque(u, ini, fim):
+                linhas.append({
+                    "codigo": None, "codigo_fornecedor": None, "fornecedor": "Parque Dez (saída de estoque)",
+                    "conta": regra.get("conta", ""),
+                    "observacao": f"Movimentação de estoque {x['codigo']} com o motivo {regra.get('motivo')} ({x['itens']} itens, a preço de custo)",
+                    "origem": "Transferência (saída de estoque)", "emissao": x["data"].isoformat(),
+                    "pagamento": x["data"].isoformat(), "vencimento": None, "valor_pago": _r2(x["valor"]),
+                })
+        for x in planilhas.recibos(u):
+            if ini <= x["data"] < fim:
+                sub = f" / {x['subcategoria']}" if x["subcategoria"] else ""
+                linhas.append({
+                    "codigo": None, "codigo_fornecedor": None,
+                    "fornecedor": x["fornecedor"] or "Recibo avulso", "conta": x["conta"],
+                    "observacao": f"Recibo{' ' + str(x['id']) if x['id'] else ''}: {x['descricao']} ({x['categoria']}{sub})",
+                    "origem": "Recibo da loja", "emissao": x["data"].isoformat(), "pagamento": x["data"].isoformat(),
+                    "vencimento": None, "valor_pago": _r2(x["valor"]),
                 })
 
     t = u.get("transferencias_cd")

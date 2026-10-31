@@ -3,6 +3,7 @@
 - classificação dos pagamentos (PAGAMENTOS, CLASSIFICAÇÃO, GRUPO, PLANO DE CONTAS)
 - vendas/estoque de unidade com "planilha_vendas" (CD): abas VENDAS e ESTOQUE.
   Pode ser trocada pelo painel (superusuário); a anterior vai para dados/backups/.
+- recibos pagos em dinheiro na loja ("planilha_recibos", Flores): aba Lançamentos. Também trocável pelo painel.
 """
 import io
 import logging
@@ -190,19 +191,27 @@ def substituir_planilha_vendas(u, conteudo):
 
     A nova só entra se puder ser lida como a anterior (abas e colunas); senão nada muda.
     Devolve o resumo da planilha nova e o nome do backup."""
-    arq = caminho(u["planilha_vendas"])
+    def validar(temp):
+        meses, estoque, _ = _ler_planilha_vendas(u, temp)
+        if not meses:
+            raise ErroPlanilha(f"a aba {u.get('aba_vendas') or 'VENDAS'} do arquivo enviado não tem nenhuma linha válida")
+        ultimo = max(meses)
+        return {"meses": len(meses), "ultimo_mes": f"{ultimo[1]:02d}/{ultimo[0]}", "tem_estoque": bool(estoque)}
+    return _trocar_planilha(caminho(u["planilha_vendas"]), conteudo, validar)
+
+
+def _trocar_planilha(arq, conteudo, validar):
+    """Grava a planilha enviada no lugar de arq se validar(arquivo) aceitar; a anterior vai para dados/backups/."""
     temp = arq.with_name(f".{arq.stem}.enviada{arq.suffix}")
     with _trava:
         temp.write_bytes(conteudo)
         try:
             try:
-                meses, estoque, _ = _ler_planilha_vendas(u, temp)
+                resumo = validar(temp)
             except ErroPlanilha as e:  # a mensagem fala do arquivo temporário: troca por "enviada"
                 raise ErroPlanilha(str(e).replace(f"A planilha {temp.name}", "A planilha enviada").rstrip(".")) from e
             except Exception as e:  # noqa: BLE001  arquivo que não é um .xlsx válido
                 raise ErroPlanilha("o arquivo enviado não é uma planilha do Excel (.xlsx) válida") from e
-            if not meses:
-                raise ErroPlanilha(f"a aba {u.get('aba_vendas') or 'VENDAS'} do arquivo enviado não tem nenhuma linha válida")
             backup = None
             if arq.exists():
                 pasta = caminho("dados/backups")
@@ -215,9 +224,7 @@ def substituir_planilha_vendas(u, conteudo):
                 raise ErroPlanilha(f"{arq.name} está aberta em outro programa no servidor (Excel?). Feche e envie de novo") from e
         finally:
             temp.unlink(missing_ok=True)
-    ultimo = max(meses)
-    return {"meses": len(meses), "ultimo_mes": f"{ultimo[1]:02d}/{ultimo[0]}", "tem_estoque": bool(estoque),
-            "backup": backup.name if backup else None}
+    return {**resumo, "backup": backup.name if backup else None}
 
 
 def _ler_estoque(u, arq):
@@ -275,10 +282,90 @@ def transferencias_cd(u, ano, mes):
     return float(p["transf_clientes"].get(normaliza(u["transferencias_cd"]["cliente"]), 0.0))
 
 
+# ------------------------------------------------------------------
+# Recibos pagos em dinheiro no caixa da loja ("planilha_recibos": Flores). Cada recibo vira um
+# pagamento numa conta contábil da planilha de classificação, pelas regras de "recibos" (topo).
+# ------------------------------------------------------------------
+_recibos = {}  # caminho -> {"lido_em", "lista": [...]}
+
+
+def _conta_recibo(r, regras, padrao):
+    """Primeira regra que casa: categoria/subcategoria iguais e alguma palavra na descrição ou no fornecedor."""
+    texto = f"{normaliza(r['descricao'])} {normaliza(r['fornecedor'])}"
+    for g in regras:
+        if g.get("categoria") and normaliza(g["categoria"]) != normaliza(r["categoria"]):
+            continue
+        if g.get("subcategoria") and normaliza(g["subcategoria"]) != normaliza(r["subcategoria"]):
+            continue
+        if g.get("palavras") and not any(normaliza(p) in texto for p in g["palavras"]):
+            continue
+        if any(normaliza(p) in texto for p in g.get("sem", [])):
+            continue
+        return g["conta"]
+    return padrao
+
+
+def _ler_recibos(arq):
+    cfg = CFG.get("recibos") or {}
+    linhas = _ler_aba(arq, cfg.get("aba") or "Lançamentos")
+    exigidas = ["DATA", "DESCRICAO", "CATEGORIA", "VALOR (R$)"]
+    i_cab, cab = _achar_cabecalho(linhas, exigidas)
+    if i_cab < 0:
+        raise ErroPlanilha(f"a aba {cfg.get('aba') or 'Lançamentos'} da planilha de recibos precisa das colunas Data, Descrição, Categoria e Valor (R$)")
+    col = lambda nome: _indice(cab, nome)
+    ignorar = {normaliza(c) for c in cfg.get("ignorar_categorias", [])}
+    lista = []
+    for l in linhas[i_cab + 1:]:
+        pega = lambda nome: l[col(nome)] if 0 <= col(nome) < len(l) else None
+        data, valor = pega("DATA"), _numero(pega("VALOR (R$)"))
+        if not hasattr(data, "year") or not valor:
+            continue
+        r = {"id": pega("ID"), "data": data.date() if hasattr(data, "date") else data,
+             "descricao": _texto(pega("DESCRICAO")), "categoria": _texto(pega("CATEGORIA")),
+             "subcategoria": _texto(pega("SUBCATEGORIA")), "fornecedor": _texto(pega("FORNECEDOR")), "valor": valor}
+        if normaliza(r["categoria"]) in ignorar:
+            continue
+        r["conta"] = _conta_recibo(r, cfg.get("regras", []), cfg.get("conta_padrao") or "OUTRAS DESPESAS")
+        lista.append(r)
+    return lista
+
+
+def _atualizar_recibos(u):
+    arq = caminho(u["planilha_recibos"])
+    if not arq.exists():
+        raise ErroPlanilha(f"planilha de recibos de {u['nome']} não encontrada")
+    mod = arq.stat().st_mtime
+    atual = _recibos.get(str(arq))
+    if atual and atual["lido_em"] == mod:
+        return False
+    lista = _ler_recibos(arq)
+    _recibos[str(arq)] = {"lido_em": mod, "lista": lista}
+    log.info("Planilha de recibos de %s carregada: %d recibos, R$ %.2f", u["nome"], len(lista), sum(r["valor"] for r in lista))
+    return True
+
+
+def recibos(u):
+    p = _recibos.get(str(caminho(u["planilha_recibos"]))) if u.get("planilha_recibos") else None
+    return p["lista"] if p else []
+
+
+def substituir_planilha_recibos(u, conteudo):
+    def validar(temp):
+        lista = _ler_recibos(temp)
+        if not lista:
+            raise ErroPlanilha("a planilha de recibos enviada não tem nenhum recibo válido")
+        return {"recibos": len(lista), "total": round(sum(r["valor"] for r in lista), 2),
+                "ultimo_dia": max(r["data"] for r in lista).strftime("%d/%m/%Y")}
+    return _trocar_planilha(caminho(u["planilha_recibos"]), conteudo, validar)
+
+
 def atualizar(lojas):
     """Relê as planilhas que mudaram. Devolve True se alguma mudou (o cache fica velho)."""
     with _trava:
         mudou = _atualizar_classificacao()
+        for u in lojas:
+            if u.get("planilha_recibos"):
+                mudou = _atualizar_recibos(u) or mudou
         com_planilha = {}
         for u in lojas:
             if u.get("planilha_vendas"):

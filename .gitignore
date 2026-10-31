@@ -8,3 +8,6 @@ dados/.chave_sessao
 dados/base_dados_cd.xlsx
 dados/backups/
 dados/.*.enviada.xlsx
+dados/recibos_loja_flores.xlsx
+Analises/
+*.zip

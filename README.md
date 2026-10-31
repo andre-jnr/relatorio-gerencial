@@ -30,6 +30,13 @@ A anterior é guardada em `dados/backups/base_dados_cd_AAAA-MM-DD_HHMMSS.xlsx`, 
 
 A **Parque Dez + Flores** e a **Flores** leem as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso funcionam sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
 
+**Saídas de estoque para a Flores:** as movimentações de estoque da Parque Dez com o motivo TRANSF LOJA FLORES são mercadoria mandada sem nota, valorizada a preço de custo.
+Na Parque Dez, elas somam no Total transf. Na Flores, entram como pagamento de transferência, na conta TRANSFERENCIA ENTRE CD (LOJAS). Na Parque Dez + Flores ficam de fora, porque são internas. A regra é `transferencias_estoque` no `config/unidades.json`.
+
+**Recibos da Flores:** as despesas pagas em dinheiro no caixa da loja não estão em nenhum banco. Elas vêm de `dados/recibos_loja_flores.xlsx`, aba Lançamentos, e entram na Flores e na Parque Dez + Flores pela data do recibo.
+Cada recibo vai para uma conta da planilha de classificação pelas regras de `recibos` no `config/unidades.json`. A categoria Caixa / Ajustes (fundo de caixa e devolução) fica de fora.
+O superusuário troca a planilha pelo botão de envio no painel da Flores, e a anterior vai para `dados/backups/`. A planilha não vai para o git.
+
 A **Flores** pega vendas e transferências do banco da Flores. Os pagamentos vêm do banco da Parque Dez, só das contas LOJA FLORES (`pagamentos_de` e `somente_contas` em `config/unidades.json`).
 As contas a pagar do próprio banco da Flores são ignoradas, porque também são lançadas na Parque Dez. Assim, Parque Dez + Flores = Parque Dez + Flores somadas.
 

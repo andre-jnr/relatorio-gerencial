@@ -149,7 +149,8 @@
       "planilha_recibos": "dados/recibos_loja_flores.xlsx",
       "transferencias_cd": {
         "unidade": "cd", "cliente": "FLORES",
-        "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES"
+        "plano": "ATIVO (COMPRAS)", "grupo": "FORNECEDOR LOJAS / CD", "conta": "FORNECEDOR CD PARA FLORES",
+        "origem": "transferencia"
       }
     },
     {

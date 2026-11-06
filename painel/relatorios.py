@@ -520,12 +520,14 @@ def dados_unidade(u):
             if m:
                 m["grupos"][l["Grupo"]] = m["grupos"].get(l["Grupo"], 0.0) + num(l["Valor"])
 
-    # transferências do CD para a loja (planilha do CD) entram nos pagamentos, como produtos para revenda
+    # transferências do CD para a loja (planilha do CD) entram nos pagamentos, como produtos para revenda;
+    # "origem": "transferencia" junta na fatia Transferência da origem das contas pagas (Flores)
     if u.get("transferencias_cd"):
+        fatia = "transferencia" if u["transferencias_cd"].get("origem") == "transferencia" else "fornecedor_cd"
         for m in meses.values():
             v = planilhas.transferencias_cd(u, m["ano"], m["mes"])
             if v:
-                m["origem"]["fornecedor_cd"] += v
+                m["origem"][fatia] += v
                 m["revenda"] += v
                 m["movimento"] = True
 

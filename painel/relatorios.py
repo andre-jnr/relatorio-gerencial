@@ -262,7 +262,7 @@ FROM Contas_Pagar cp
 LEFT JOIN Conta_Contabil cc ON cc.Codigo = cp.Conta_Contabil
 WHERE (cp.Data_Pagamento >= @ini OR cp.Data_Emissao >= @ini)
   AND """ + CONTA_SEM_ESPACO + """ NOT IN (__TODAS_EXCLUIDAS__)
-  AND CAST(cp.Observacao AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AI LIKE __PROCURAR__;"""
+  AND (__PROCURAR__);"""
 
 
 def _obs_outra_loja(u):
@@ -270,12 +270,15 @@ def _obs_outra_loja(u):
     regra = CFG.get("observacao_outra_loja") or {}
     if not (regra.get("regex") and u.get("observacao_outra_loja") in ("excluir", "incluir")):
         return {}
+    lista = lambda v: v if isinstance(v, list) else [v]  # aceita um texto ou uma lista (ex.: FLORES - e OSSAMI)
+    obs_sql = "CAST(cp.Observacao AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AI"
+    procurar = " OR ".join(f"{obs_sql} LIKE {_sql_texto('%' + p + '%')}" for p in lista(regra.get("procurar", "")))
     hoje = date.today()
     desde = soma_meses(date(hoje.year, hoje.month, 1), -MESES_HISTORICO - 2)
     excluidas = CFG.get("contas_excluidas_pagamentos", []) + CFG.get("contas_ignoradas", [])
-    sql = (SQL_OBS_LOJA.replace("__PROCURAR__", _sql_texto("%" + regra.get("procurar", "") + "%"))
+    sql = (SQL_OBS_LOJA.replace("__PROCURAR__", procurar)
            .replace("__TODAS_EXCLUIDAS__", ", ".join(_sql_texto(chave_conta(c)) for c in excluidas if c) or "N''"))
-    expr = re.compile(regra["regex"])
+    expr = re.compile("|".join(f"(?:{x})" for x in lista(regra["regex"])))
     return {int(l["Codigo"]): (l["Observacao"] or "").strip()
             for l in consultar(_fonte_pagamentos(u), sql, (_dt(desde),)) if expr.search(normaliza(l["Observacao"]))}
 
@@ -1006,7 +1009,7 @@ def conciliacao(u, ano, mes):
                       "Transferência para a Flores (rodapé ou observação)")
         elif modo_obs == "excluir" and codigo in obs_loja:
             motivo = ("outra_loja", "Pagamentos de outra loja", "Lançados nesta unidade, mas de outra loja",
-                      "Pagamento com a Flores na observação (FLORES -)")
+                      "Pagamento com a Flores na observação (FLORES - ou OSSAMI)")
         if motivo:
             lancar(grupo(motivo[0], "menos", motivo[1], motivo[2]), v, motivo[3], linha)
             continue

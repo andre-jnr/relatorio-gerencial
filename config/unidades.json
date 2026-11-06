@@ -35,8 +35,9 @@
 
   "observacao_outra_loja": {
     "_leia": "Pagamentos da Flores lançados pela Parque Dez em outra conta contábil, mas com 'FLORES -' na observação (ex.: FLORES - SORVETES KIBON). Parque Dez: fora. Flores: entram, na conta em que foram lançados. Parque Dez + Flores: já entram normalmente. Compara em maiúsculas e sem acentos.",
-    "procurar": "FLORES",
-    "regex": "\\bFLORES\\s*-"
+    "_procurar": "OSSAMI é o nome antigo da Flores (ex.: AQUISIÇÃO VAREJÃO OSSAMI, CERTIDÃO SIMPLIFICADA - OSSAMI); OS+AMI pega OSAMI e OSSAMI.",
+    "procurar": ["FLORES", "SAMI"],
+    "regex": ["\\bFLORES\\s*-", "\\bOS+AMI\\b"]
   },
 
   "despesas_socios": {

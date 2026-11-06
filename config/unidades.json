@@ -61,6 +61,18 @@
           "CARTAO",
           "JARBAS\\.?\\s+PARA\\b"
         ]
+      },
+      {
+        "nome": "Sr. Eduardo",
+        "procurar": "EDUARDO",
+        "regex": "\\b(SR|SEU|SENHOR)\\.?\\s*EDUARDO\\b",
+        "exceto": [
+          "\\bAUT(\\.|\\b|ORIZ)",
+          "RETIRAD",
+          "\\bPELO\\s+(SR|SEU|SENHOR)",
+          "CARTAO",
+          "EDUARDO\\.?\\s+PARA\\b"
+        ]
       }
     ]
   },

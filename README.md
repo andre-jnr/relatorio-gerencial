@@ -36,7 +36,7 @@ Eles saem da Parque Dez (aparecem em "Lançamentos desconsiderados") e entram na
 **Despesas dos sócios e da família (Parque Dez):** ficam fora dos pagamentos e aparecem em "Lançamentos desconsiderados". Elas só entram no consolidado. Entram nessa regra:
 - os fornecedores JC PARTICIPAÇÕES (3252) e Sul América (3244);
 - a conta INSS - SOCIOS;
-- as observações com D. Silvia ou Sr. Jarbas.
+- as observações com D. Silvia, Sr. Jarbas ou Sr. Eduardo.
 
 Autorizações (AUT.), retiradas e compras feitas por eles para a loja não entram. A regra é `despesas_socios` no `config/unidades.json`. Os códigos de fornecedor ficam em cada unidade, porque mudam de um banco para outro.
 

@@ -5,7 +5,7 @@ Usa as mesmas regras e funções do *Relatório gerencial testes*, exceto o Cons
 
 - **Porta:** 3007. Ela vem de `PORT` no `.env`.
 - **Tecnologia:** Python 3.10 ou mais novo, Flask (Waitress no servidor), `mssql-python` (já traz o driver; não precisa instalar o ODBC) e `openpyxl`.
-- **Páginas:** Visão geral (`/`), Pagamentos (`/pagamentos.html`) e Análise por conta contábil (`/conta-contabil.html`).
+- **Páginas:** Visão geral (`/`), Pagamentos (`/pagamentos.html`), Análise por conta contábil (`/conta-contabil.html`) e Conciliação dos pagamentos (`/conciliacao.html`).
 
 ## Escolher as lojas (`.env`)
 
@@ -56,6 +56,17 @@ As transferências encontradas saem da Parque Dez (aparecem em "Lançamentos des
 O painel também lê as notas emitidas pelas unidades de `emissores` (rodapé em `Fiscal_NF.Dados_Adicionais_Manuais`). Assim, a Flores e a Parque Dez + Flores recebem, pela data de emissão, as notas que a Parque Dez ainda não lançou como conta a pagar.
 Quando a nota é lançada e paga na Parque Dez, ela deixa de vir pela nota emitida e passa a contar pela conta a pagar, então não entra duas vezes. A comparação é feita pela chave da NF-e.
 As palavras e a data inicial ficam em `transferencias_marcadas` no `config/unidades.json`. As transferências do CD para a Flores ainda não têm marcação e continuam vindo da planilha do CD.
+
+## Conciliação dos pagamentos
+
+A página **Conciliação dos pagamentos** (`/conciliacao.html`) mostra, com centavos, como se chega ao **Pagamentos** da Visão geral para a loja e o período escolhidos (mês ou ano inteiro):
+
+1. **Pago no sistema:** tudo o que tem data de pagamento no período em `Contas_Pagar`, sem nenhum filtro.
+2. **Desconsiderado (−):** cada regra que tira valores da loja, como contas ignoradas, lançamentos ignorados, pagamentos externos, despesas dos sócios, pagamentos de outra loja e a parte da conta que fica com outra unidade (fator).
+3. **Acrescentado de outras fontes (+):** o que não está no banco da loja, como pagamentos lançados pelo banco da Parque Dez (Flores), notas de transferência ainda sem conta a pagar, saídas de estoque, recibos e transferências do CD.
+4. **Pagamentos no painel:** o resultado, com um selo que confere com a Visão geral.
+
+Cada lançamento entra em uma regra só, na ordem acima. Cada ajuste abre a lista dos lançamentos (código, data, fornecedor, conta, observação e valor). O botão **Gerar PDF** baixa o relatório inteiro, com todas as listas abertas.
 
 ## Onde fica cada coisa
 

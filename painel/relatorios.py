@@ -11,6 +11,8 @@ Regras por unidade (config/unidades.json):
   contas_ignoradas             fora de todos os relatórios
   fator_contas                 fração do valor lançado que entra (ex.: CD, 60% da energia)
   lancamentos_ignorados        códigos de Contas_Pagar desconsiderados
+  externos_lancamentos         dos lançamentos ignorados, os que são pagamento externo (código: conta), para a
+                               Conciliação e o consolidado
   vendas_adicionais            vendas de outros servidores somadas às da unidade (Parque Dez + Flores)
   pagamentos_de                servidor/banco de onde vêm as contas pagas, no lugar do da unidade (Flores)
   somente_contas               só estas contas entram nos pagamentos (mesmo se estiverem nas excluídas)
@@ -879,4 +881,194 @@ def lista_pagamentos(u, ano, mes, restos_boi=False, desconsiderados=False):
         "periodo": {"ini": ini.isoformat(), "fim": date.fromordinal(fim.toordinal() - 1).isoformat()},
         "atualizado_em": agora_iso(),
         "linhas": linhas,
+    }
+
+
+# ------------------------------------------------------------------
+# Página Conciliação: do total pago lançado no sistema até o pagamento do painel, regra por regra
+# ------------------------------------------------------------------
+SQL_CONCILIACAO = PERIODO + """
+SELECT cp.Codigo, pe.Nome AS Fornecedor, ISNULL(cc.Descricao, '') AS Conta, cp.Data_Pagamento,
+       ISNULL(cp.Valor_Pago, 0) AS Valor_Pago, CAST(cp.Observacao AS NVARCHAR(MAX)) AS Observacao
+FROM Contas_Pagar cp
+LEFT JOIN Conta_Contabil cc ON cc.Codigo = cp.Conta_Contabil
+LEFT JOIN Pessoa pe ON pe.Codigo = cp.Codigo_Fornecedor
+WHERE cp.Data_Pagamento >= @ini AND cp.Data_Pagamento < @fim
+ORDER BY cp.Data_Pagamento, cp.Codigo;"""
+
+
+def _periodo_conciliacao(ano, mes):
+    """Meses inteiros, como a Visão geral (o mês em andamento vai até o fim do mês)."""
+    hoje = date.today()
+    if mes:
+        return date(ano, mes, 1), soma_meses(date(ano, mes, 1), 1)
+    fim = date(ano + 1, 1, 1) if ano < hoje.year else soma_meses(date(hoje.year, hoje.month, 1), 1)
+    return date(ano, 1, 1), fim
+
+
+def conciliacao(u, ano, mes):
+    """Ponte entre o que está pago no sistema e o "Pagamentos" do painel no período (mes = 0: o ano).
+
+    Cada lançamento do banco recebe o primeiro motivo que o tira da unidade, na mesma lógica das
+    consultas do painel (contas excluídas, lançamentos ignorados, sócios, outra loja, somente_contas,
+    fator). Depois entram as fontes de fora do banco (recibos, CD, notas emitidas, estoque)."""
+    ini, fim = _periodo_conciliacao(ano, mes)
+    periodo = (_dt(ini), _dt(fim))
+    outra_fonte = bool(u.get("pagamentos_de"))
+    tarefas = {"proprio": (u, SQL_CONCILIACAO, periodo)}
+    if outra_fonte:
+        tarefas["pagador"] = (_fonte_pagamentos(u), SQL_CONCILIACAO, periodo)
+    r = consultar_varios(tarefas)
+
+    inc = _incluidas(u)
+    ign = {chave_conta(c) for c in CFG.get("contas_ignoradas", []) if c} - inc
+    externas = {chave_conta(c) for c in CFG.get("contas_excluidas_pagamentos", []) if c} - inc
+    lanc = {int(c) for c in u.get("lancamentos_ignorados", []) if c is not None}
+    externos_lanc = {str(k): v for k, v in (u.get("externos_lancamentos") or {}).items()}
+    somente = {chave_conta(c) for c in u.get("somente_contas", []) if c}
+    marcadas, socios, obs_loja, fatores = _marcadas(u), _socios(u), _obs_outra_loja(u), _fatores(u)
+    modo_transf, modo_obs = u.get("transferencias_marcadas"), u.get("observacao_outra_loja")
+
+    grupos = {}
+
+    def grupo(chave, tipo, titulo, descricao):
+        if chave not in grupos:
+            grupos[chave] = {"id": chave, "tipo": tipo, "titulo": titulo, "descricao": descricao,
+                             "valor": 0.0, "qtde": 0, "subgrupos": {}, "linhas": []}
+        return grupos[chave]
+
+    def lancar(g, valor, sub, linha):
+        g["valor"] += valor
+        g["qtde"] += 1
+        s = g["subgrupos"].setdefault(sub, {"titulo": sub, "valor": 0.0, "qtde": 0})
+        s["valor"] += valor
+        s["qtde"] += 1
+        g["linhas"].append({**linha, "valor": round(valor, 4), "detalhe": sub})
+
+    def linha_banco(l):
+        return {"codigo": int(l["Codigo"]), "data": _data_iso(l["Data_Pagamento"]),
+                "fornecedor": (l["Fornecedor"] or "").strip(), "conta": (l["Conta"] or "").strip(),
+                "observacao": " ".join((l["Observacao"] or "").split())}
+
+    base_linhas = r["proprio"]
+    base = {"valor": sum(num(l["Valor_Pago"]) for l in base_linhas), "qtde": len(base_linhas),
+            "titulo": f"Pago no sistema da {u['nome']}" if outra_fonte else "Pago no sistema",
+            "descricao": "Soma de Contas_Pagar.Valor_Pago por data de pagamento, sem nenhum filtro"}
+
+    if outra_fonte:
+        # Flores: as contas do próprio banco são ignoradas; os pagamentos vêm do banco que paga
+        g = grupo("banco_proprio", "menos", f"Contas a pagar do banco da {u['nome']}",
+                  "Ignoradas: as baixas reais são lançadas no banco da Parque Dez (seriam contadas duas vezes)")
+        for l in base_linhas:
+            lancar(g, num(l["Valor_Pago"]), "Contas a pagar do próprio banco", linha_banco(l))
+        candidatos = r["pagador"]
+        entrada = grupo("pagador", "mais", "Lançados no banco da Parque Dez",
+                        "Pagamentos da unidade feitos e lançados pelo banco da Parque Dez")
+    else:
+        candidatos, entrada = base_linhas, None
+
+    for l in candidatos:
+        codigo, conta = int(l["Codigo"]), chave_conta(l["Conta"])
+        v = num(l["Valor_Pago"])
+        linha = linha_banco(l)
+        if outra_fonte:
+            # só entra o que é da unidade; o resto é da Parque Dez e nem aparece aqui
+            if codigo in lanc or codigo in socios or conta in ign:
+                continue
+            if conta in somente:
+                motivo = f"Conta {l['Conta'].strip()}"
+            elif modo_transf == "incluir" and codigo in marcadas:
+                motivo = "Transferência recebida (rodapé ou observação)"
+            elif modo_obs == "incluir" and codigo in obs_loja:
+                motivo = "Pagamento com a loja na observação"
+            else:
+                continue
+            lancar(entrada, v * fatores.get(conta, 1), motivo, linha)
+            continue
+        motivo = None
+        if conta in ign:
+            motivo = ("ignoradas", "Contas ignoradas", "Desconsideradas em todos os relatórios", l["Conta"].strip())
+        elif codigo in lanc and str(codigo) in externos_lanc:
+            # lançamento tirado da loja que entra no consolidado como pagamento externo (ex.: compra de imóvel)
+            motivo = ("externos", "Pagamentos externos", "Contas da empresa como um todo; entram só no consolidado",
+                      externos_lanc[str(codigo)])
+        elif codigo in lanc:
+            motivo = ("lancamentos", "Lançamentos ignorados", "Lançamentos específicos tirados da unidade",
+                      f"Código {codigo}")
+        elif conta in externas:  # conta externa primeiro, como no consolidado
+            motivo = ("externos", "Pagamentos externos", "Contas da empresa como um todo; entram só no consolidado",
+                      l["Conta"].strip())
+        elif codigo in socios:
+            motivo = ("socios", "Despesas dos sócios e da família", "Entram só no consolidado",
+                      socios[codigo][:1].upper() + socios[codigo][1:])
+        elif modo_transf == "excluir" and codigo in marcadas:
+            motivo = ("outra_loja", "Pagamentos de outra loja", "Lançados nesta unidade, mas de outra loja",
+                      "Transferência para a Flores (rodapé ou observação)")
+        elif modo_obs == "excluir" and codigo in obs_loja:
+            motivo = ("outra_loja", "Pagamentos de outra loja", "Lançados nesta unidade, mas de outra loja",
+                      "Pagamento com a Flores na observação (FLORES -)")
+        if motivo:
+            lancar(grupo(motivo[0], "menos", motivo[1], motivo[2]), v, motivo[3], linha)
+            continue
+        fator = fatores.get(conta, 1)
+        if fator != 1:
+            lancar(grupo("fator", "menos", "Parte da conta que fica com outra unidade",
+                         "Fator por conta: só uma parte do valor pago entra nesta unidade"),
+                   v * (1 - fator), f"{l['Conta'].strip()}: entra {round(fator * 100)}%", linha)
+
+    # fontes de fora do banco desta unidade
+    regra_transf = _regra_transf()[0] or {}
+    for n in transf_nao_lancadas(u):
+        if ini <= n["emissao"] < fim:
+            lancar(grupo("notas", "mais", "Transferências recebidas ainda sem conta a pagar",
+                         "Notas emitidas pelas outras unidades para esta loja (rodapé), pela data de emissão"),
+                   n["valor"], f"Emitidas pela {n['emissor']}",
+                   {"codigo": None, "data": n["emissao"].isoformat(), "fornecedor": n["emissor"],
+                    "conta": regra_transf.get("conta", ""), "observacao": f"NF {n['nf']} · {n['rodape']}"})
+    if u.get("transferencias_estoque") == "recebida":
+        conta_est = (CFG.get("transferencias_estoque") or {}).get("conta", "")
+        for x in mov_estoque(u, ini, fim):
+            lancar(grupo("estoque", "mais", "Saídas de estoque da Parque Dez para esta loja",
+                         "Mercadoria mandada sem nota (motivo TRANSF LOJA FLORES), a preço de custo"),
+                   x["valor"], "Movimentações de estoque",
+                   {"codigo": x["codigo"], "data": x["data"].isoformat(), "fornecedor": "Parque Dez (estoque)",
+                    "conta": conta_est, "observacao": f"Movimentação {x['codigo']} · {x['itens']} itens"})
+    for x in planilhas.recibos(u):
+        if ini <= x["data"] < fim:
+            lancar(grupo("recibos", "mais", "Recibos pagos no caixa da loja",
+                         "Planilha de recibos (dinheiro), sem Caixa / Ajustes"),
+                   x["valor"], x["conta"],
+                   {"codigo": x["id"], "data": x["data"].isoformat(), "fornecedor": x["fornecedor"] or "Recibo avulso",
+                    "conta": x["conta"], "observacao": f"{x['descricao']} ({x['categoria']})"})
+    t = u.get("transferencias_cd")
+    if t:
+        d = ini
+        while d < fim:
+            v = planilhas.transferencias_cd(u, d.year, d.month)
+            if v:
+                lancar(grupo("cd", "mais", "Transferências do CD", "Planilha do CD: total do mês para esta loja"),
+                       v, t["conta"], {"codigo": None, "data": d.isoformat(), "fornecedor": "CD (planilha)",
+                                       "conta": t["conta"], "observacao": f"{MESES_LABEL[d.month - 1]}/{d.year}"})
+            d = soma_meses(d, 1)
+
+    ordem = ["banco_proprio", "ignoradas", "lancamentos", "externos", "socios", "outra_loja", "fator",
+             "pagador", "notas", "estoque", "recibos", "cd"]
+    lista = []
+    for chave in ordem:
+        g = grupos.get(chave)
+        if not g or not g["qtde"]:
+            continue
+        g["subgrupos"] = sorted(({**s, "valor": round(s["valor"], 4)} for s in g["subgrupos"].values()),
+                                key=lambda s: -abs(s["valor"]))
+        lista.append(g)
+    total = base["valor"] + sum(g["valor"] if g["tipo"] == "mais" else -g["valor"] for g in lista)
+    for g in lista:
+        g["valor"] = round(g["valor"], 4)
+    return {
+        "slug": u["slug"], "unidade": u["nome"], "ano": ano, "mes": mes,
+        "periodo": {"ini": ini.isoformat(), "fim": date.fromordinal(fim.toordinal() - 1).isoformat()},
+        "atualizado_em": agora_iso(),
+        "base": {**base, "valor": round(base["valor"], 4)},
+        "grupos": lista,
+        "total": round(total, 4),
     }

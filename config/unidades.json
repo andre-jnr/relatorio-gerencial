@@ -117,12 +117,14 @@
       "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura",
       "_lancamentos_ignorados": "146333: R$ 190,16 pago em 29/10/2026 (REGISTRO DE IMÓVEIS, certidão). Soma com a compra de imóvel: entra só no consolidado, como pagamento externo.",
       "lancamentos_ignorados": [146333],
+      "externos_lancamentos": {"146333": "INVESTIMENTO/ COMPRA DE IMÓVEL"},
       "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada", "observacao_outra_loja": "excluir",
       "despesas_socios": {"fornecedores": [3252, 3244], "nomes_fornecedores": {"3252": "JC PARTICIPAÇÕES LTDA", "3244": "SUL AMERICA (plano de saúde)"}} },
     {
       "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
       "_lancamentos_ignorados": "146333: R$ 190,16 pago em 29/10/2026 (REGISTRO DE IMÓVEIS, certidão). Soma com a compra de imóvel: entra só no consolidado, como pagamento externo.",
       "lancamentos_ignorados": [146333],
+      "externos_lancamentos": {"146333": "INVESTIMENTO/ COMPRA DE IMÓVEL"},
       "vendas_adicionais": [
         { "nome": "Flores", "servidor": "server", "banco": "sismoura", "credencial": "FLORES" }
       ],
@@ -156,7 +158,8 @@
     {
       "slug": "ponta_negra", "nome": "Ponta Negra", "servidor": "server_pn", "banco": "sismoura",
       "_lancamentos_ignorados": "90097: R$ 500.000,00 pago em 01/10/2026 (DESPESA COM INVESTIMENTO DA LOJA, terreno do estacionamento). Entra só no fechamento geral, em outro projeto.",
-      "lancamentos_ignorados": [90097]
+      "lancamentos_ignorados": [90097],
+      "externos_lancamentos": {"90097": "INVESTIMENTO/ COMPRA DE IMÓVEL"}
     },
     { "slug": "morada_do_sol", "nome": "Morada do Sol", "servidor": "serverad", "banco": "sismoura_srv" },
     { "slug": "monte_das_oliveiras", "nome": "Monte das Oliveiras", "servidor": "200.150.200.180", "banco": "SISMOURA_SRV_MONTE" },

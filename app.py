@@ -28,7 +28,7 @@ from painel.usuarios import ErroUsuario
 
 PORTA_OCUPADA = 3  # código de saída usado por servidor/iniciar.ps1 para não ficar tentando de novo
 WEB = RAIZ / "web"
-PAGINAS = {"index.html", "pagamentos.html", "conta-contabil.html"}
+PAGINAS = {"index.html", "pagamentos.html", "conta-contabil.html", "conciliacao.html"}
 PAGINAS_SUPER = {"usuarios.html"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -331,6 +331,23 @@ def pagamentos(slug):
     ano, mes = _ano_mes(permite_ano_inteiro=restos or desconsiderados)
     return _consultar(u, f"lista|{slug}|{ano}|{mes}|{restos}|{desconsiderados}",
                       lambda: relatorios.lista_pagamentos(u, ano, mes, restos, desconsiderados), "Lista de pagamentos")
+
+
+@app.get("/api/conciliacao/<slug>")
+def conciliacao(slug):
+    u = _loja_ou_404(slug)
+    ano, mes = _ano_mes(permite_ano_inteiro=True)
+    atualizar = request.args.get("atualizar") == "1"
+
+    def gerar():
+        c = relatorios.conciliacao(u, ano, mes)
+        # o "Pagamentos" que o painel mostra no mesmo período, para conferir a ponte
+        dados = json.loads(_em_cache(f"dados|{slug}", lambda: relatorios.dados_unidade(u), atualizar))
+        c["painel"] = round(sum(m["pagamentos"] for m in dados["meses"]
+                                if m["ano"] == ano and (mes == 0 or m["mes"] == mes)), 2)
+        return c
+
+    return _consultar(u, f"conciliacao|{slug}|{ano}|{mes}", gerar, "Conciliação dos pagamentos")
 
 
 PLANILHAS_ENVIO = {  # tipo na URL -> (campo da unidade, função que troca, descrição)

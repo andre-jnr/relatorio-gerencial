@@ -113,10 +113,16 @@
   },
 
   "unidades": [
-    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada", "observacao_outra_loja": "excluir",
+    {
+      "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura",
+      "_lancamentos_ignorados": "146333: R$ 190,16 pago em 29/10/2026 (REGISTRO DE IMÓVEIS, certidão). Soma com a compra de imóvel: entra só no consolidado, como pagamento externo.",
+      "lancamentos_ignorados": [146333],
+      "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada", "observacao_outra_loja": "excluir",
       "despesas_socios": {"fornecedores": [3252, 3244], "nomes_fornecedores": {"3252": "JC PARTICIPAÇÕES LTDA", "3244": "SUL AMERICA (plano de saúde)"}} },
     {
       "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
+      "_lancamentos_ignorados": "146333: R$ 190,16 pago em 29/10/2026 (REGISTRO DE IMÓVEIS, certidão). Soma com a compra de imóvel: entra só no consolidado, como pagamento externo.",
+      "lancamentos_ignorados": [146333],
       "vendas_adicionais": [
         { "nome": "Flores", "servidor": "server", "banco": "sismoura", "credencial": "FLORES" }
       ],

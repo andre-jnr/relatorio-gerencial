@@ -33,6 +33,32 @@
     "palavras": ["FLORES", "LARANJEIRA", "AEROCLUB"]
   },
 
+  "despesas_socios": {
+    "_leia": "Despesas dos sócios e da família: ficam fora das lojas (Visão geral, conta contábil e Pagamentos; aparecem em Lançamentos desconsiderados) e só entram no consolidado. Entram: os fornecedores de cada unidade (despesas_socios.fornecedores na unidade, pois os códigos de Pessoa mudam por banco), as contas abaixo e as observações que casam com as expressões (texto em maiúsculas e sem acentos). 'exceto' tira autorizações (AUT., autorizado), retiradas e compras feitas por eles para a loja (pelo Sr. Jarbas, no cartão do Sr. Jarbas, do Sr. Jarbas para ...).",
+    "contas": [
+      "INSS - SOCIOS"
+    ],
+    "observacao": [
+      {
+        "nome": "Dona Silvia",
+        "procurar": "SILV",
+        "regex": "\\bDONA\\s+SILVI?A\\b|\\bD\\.?\\s*SILVIA\\b"
+      },
+      {
+        "nome": "Sr. Jarbas",
+        "procurar": "JARBAS",
+        "regex": "\\b(SR|SEU|SENHOR)\\.?\\s*JARBAS\\b",
+        "exceto": [
+          "\\bAUT(\\.|\\b|ORIZ)",
+          "RETIRAD",
+          "\\bPELO\\s+(SR|SEU|SENHOR)",
+          "CARTAO",
+          "JARBAS\\.?\\s+PARA\\b"
+        ]
+      }
+    ]
+  },
+
   "transferencias_estoque": {
     "_leia": "Saídas de estoque da Parque Dez com este motivo (Mov_Desc, comparado sem espaços nem acentos) são mercadoria mandada para a Flores sem nota, a preço de custo. Parque Dez: soma no Total transf. Flores: entra como pagamento de transferência nesta conta. Parque Dez + Flores: fica de fora (movimentação interna).",
     "motivo": "TRANSF LOJA FLORES",
@@ -69,7 +95,8 @@
   },
 
   "unidades": [
-    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada" },
+    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada",
+      "despesas_socios": {"fornecedores": [3252, 3244], "nomes_fornecedores": {"3252": "JC PARTICIPAÇÕES LTDA", "3244": "SUL AMERICA (plano de saúde)"}} },
     {
       "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
       "vendas_adicionais": [
@@ -77,6 +104,7 @@
       ],
       "_incluir_contas": "Contas da Flores pagas pelo banco da Parque Dez: ficam fora da Parque Dez sozinha e entram aqui.",
       "transferencias_marcadas": "completar",
+      "despesas_socios": {"fornecedores": [3252, 3244], "nomes_fornecedores": {"3252": "JC PARTICIPAÇÕES LTDA", "3244": "SUL AMERICA (plano de saúde)"}},
       "planilha_recibos": "dados/recibos_loja_flores.xlsx",
       "incluir_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
       "nome_vendas": "Parque Dez",

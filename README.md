@@ -30,6 +30,13 @@ A anterior é guardada em `dados/backups/base_dados_cd_AAAA-MM-DD_HHMMSS.xlsx`, 
 
 A **Parque Dez + Flores** e a **Flores** leem as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso funcionam sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
 
+**Despesas dos sócios e da família (Parque Dez):** ficam fora dos pagamentos e aparecem em "Lançamentos desconsiderados". Elas só entram no consolidado. Entram nessa regra:
+- os fornecedores JC PARTICIPAÇÕES (3252) e Sul América (3244);
+- a conta INSS - SOCIOS;
+- as observações com D. Silvia ou Sr. Jarbas.
+
+Autorizações (AUT.), retiradas e compras feitas por eles para a loja não entram. A regra é `despesas_socios` no `config/unidades.json`. Os códigos de fornecedor ficam em cada unidade, porque mudam de um banco para outro.
+
 **Saídas de estoque para a Flores:** as movimentações de estoque da Parque Dez com o motivo TRANSF LOJA FLORES são mercadoria mandada sem nota, valorizada a preço de custo.
 Na Parque Dez, elas somam no Total transf. Na Flores, entram como pagamento de transferência, na conta TRANSFERENCIA ENTRE CD (LOJAS). Na Parque Dez + Flores ficam de fora, porque são internas. A regra é `transferencias_estoque` no `config/unidades.json`.
 

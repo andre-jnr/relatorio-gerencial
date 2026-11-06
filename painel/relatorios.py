@@ -16,6 +16,8 @@ Regras por unidade (config/unidades.json):
   somente_contas               só estas contas entram nos pagamentos (mesmo se estiverem nas excluídas)
   transferencias_estoque       "enviada" (soma no Total transf.) ou "recebida" (vira pagamento) as saídas de
                                estoque com o motivo da regra de mesmo nome (TRANSF LOJA FLORES)
+  despesas_socios              despesas dos sócios e da família (fornecedores da unidade + regra de mesmo nome):
+                               fora da loja, só entram no consolidado
   transferencias_marcadas      "excluir" ou "incluir" as transferências recebidas cuja nota (rodapé do XML)
                                ou observação cita outra loja (palavras na regra de mesmo nome, no topo)
   transferencias_cd            transferências do CD (planilha) lançadas como pagamento da loja
@@ -23,6 +25,7 @@ Regras por unidade (config/unidades.json):
   conta_boi                    CD: boi emitido em ano anterior ao do pagamento pode ficar fora do ano
 A comparação de contas ignora maiúsculas, acentos e espaços (a grafia varia entre os bancos).
 """
+import re
 import threading
 from datetime import date, datetime, timezone
 
@@ -198,8 +201,58 @@ def _sql_codigos(codigos):
     return f"cp.Codigo IN ({', '.join(map(str, sorted(codigos)))})" if codigos else "1 = 0"
 
 
-def _sql_somente(u, marcadas):
-    """Filtros da unidade: "somente_contas" e "transferencias_marcadas" ("excluir" ou "incluir")."""
+# ------------------------------------------------------------------
+# Despesas dos sócios e da família ("despesas_socios"): ficam fora da loja e só entram no consolidado.
+# Pegam os fornecedores da unidade (códigos de Pessoa são por banco), as contas da regra e as
+# observações que citam os sócios (expressões da regra, sobre o texto sem acentos e em maiúsculas;
+# "exceto" tira autorizações, retiradas e compras feitas por eles para a loja).
+# ------------------------------------------------------------------
+SQL_SOCIOS = """DECLARE @ini DATETIME = ?;
+SELECT cp.Codigo, cp.Codigo_Fornecedor, ISNULL(cc.Descricao, '') AS Conta, CAST(cp.Observacao AS NVARCHAR(MAX)) AS Observacao
+FROM Contas_Pagar cp
+LEFT JOIN Conta_Contabil cc ON cc.Codigo = cp.Conta_Contabil
+WHERE (cp.Data_Pagamento >= @ini OR cp.Data_Emissao >= @ini) AND (__CANDIDATOS__);"""
+
+
+def _socios(u):
+    """{código da conta a pagar: motivo} das despesas dos sócios e da família na unidade."""
+    regra, unidade = CFG.get("despesas_socios") or {}, u.get("despesas_socios")
+    if not (regra and unidade):
+        return {}
+    fornecedores = {int(f) for f in unidade.get("fornecedores", [])}
+    contas = {chave_conta(c) for c in regra.get("contas", []) if c}
+    padroes = [{**p, "re": re.compile(p["regex"]), "exceto_re": [re.compile(x) for x in p.get("exceto", [])]}
+               for p in regra.get("observacao", [])]
+    candidatos = [f"cp.Codigo_Fornecedor IN ({', '.join(map(str, sorted(fornecedores)))})" if fornecedores else "",
+                  f"{CONTA_SEM_ESPACO} IN ({', '.join(_sql_texto(c) for c in sorted(contas))})" if contas else ""]
+    candidatos += [f"CAST(cp.Observacao AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AI LIKE {_sql_texto('%' + p['procurar'] + '%')}"
+                   for p in padroes]
+    candidatos = " OR ".join(c for c in candidatos if c) or "1 = 0"
+    hoje = date.today()
+    desde = soma_meses(date(hoje.year, hoje.month, 1), -MESES_HISTORICO - 2)
+    linhas = consultar(_fonte_pagamentos(u), SQL_SOCIOS.replace("__CANDIDATOS__", candidatos), (_dt(desde),))
+    nomes = unidade.get("nomes_fornecedores", {})
+    achados = {}
+    for l in linhas:
+        obs = normaliza(l["Observacao"])
+        motivo = None
+        if l["Codigo_Fornecedor"] is not None and int(l["Codigo_Fornecedor"]) in fornecedores:
+            motivo = f"fornecedor {nomes.get(str(int(l['Codigo_Fornecedor'])), int(l['Codigo_Fornecedor']))}"
+        elif chave_conta(l["Conta"]) in contas:
+            motivo = f"conta {l['Conta'].strip()}"
+        else:
+            for p in padroes:
+                if p["re"].search(obs) and not any(x.search(obs) for x in p["exceto_re"]):
+                    motivo = f"observação cita {p['nome']}"
+                    break
+        if motivo:
+            achados[int(l["Codigo"])] = motivo
+    return achados
+
+
+def _sql_somente(u, marcadas, socios=None):
+    """Filtros da unidade: "somente_contas", "transferencias_marcadas" ("excluir" ou "incluir") e
+    "despesas_socios" (sempre fora)."""
     contas = [c for c in u.get("somente_contas", []) if c]
     filtro = ""
     if contas:
@@ -209,6 +262,8 @@ def _sql_somente(u, marcadas):
         filtro = f"AND {filtro}"
     if u.get("transferencias_marcadas") == "excluir":
         filtro += f" AND NOT {_sql_codigos(marcadas)}"
+    if socios:
+        filtro += f" AND NOT {_sql_codigos(socios)}"
     return filtro
 
 
@@ -236,13 +291,15 @@ def _sql_lancamentos(u):
     return ", ".join(map(str, codigos)) or "-1"
 
 
-def _formatar(sql, u, marcadas=None):
+def _formatar(sql, u, marcadas=None, socios=None):
     if marcadas is None:
         marcadas = _marcadas(u)
+    if socios is None:
+        socios = _socios(u)
     return (sql.replace("__EXCLUIDAS__", _sql_excluidas(u))
                .replace("__FATOR__", _sql_fator(u))
                .replace("__LANCAMENTOS__", _sql_lancamentos(u))
-               .replace("__SOMENTE__", _sql_somente(u, marcadas)))
+               .replace("__SOMENTE__", _sql_somente(u, marcadas, socios)))
 
 
 # ------------------------------------------------------------------
@@ -318,6 +375,7 @@ def dados_unidade(u):
     ini = soma_meses(fim, -MESES_HISTORICO - 1)
     periodo = (_dt(ini), _dt(fim))
     marcadas = _marcadas(u)
+    socios = _socios(u)
 
     meses = {}
     d = ini
@@ -334,8 +392,8 @@ def dados_unidade(u):
     # todas as consultas da unidade (e das lojas somadas a ela) em paralelo; CD com planilha não consulta vendas
     tarefas = {
         "transf": (u, SQL_TRANSF, periodo),
-        "pagamentos": (_fonte_pagamentos(u), _formatar(SQL_PAGAMENTOS, u, marcadas), periodo),
-        "proximo": (_fonte_pagamentos(u), _formatar(SQL_PROXIMO_MES, u, marcadas), periodo),
+        "pagamentos": (_fonte_pagamentos(u), _formatar(SQL_PAGAMENTOS, u, marcadas, socios), periodo),
+        "proximo": (_fonte_pagamentos(u), _formatar(SQL_PROXIMO_MES, u, marcadas, socios), periodo),
     }
     if not u.get("planilha_vendas"):
         tarefas["vendas"] = (u, SQL_VENDAS, periodo)
@@ -462,6 +520,7 @@ def dados_unidade(u):
         # link "Lançamentos desconsiderados": loja com lançamentos ignorados ou transferências de outra loja
         # desconsideradas, ou o CD (onde há FALCAO INDUSTRIA NF)
         "tem_desconsiderados": bool(u.get("lancamentos_ignorados") or u.get("transferencias_marcadas") == "excluir"
+                                    or u.get("despesas_socios")
                                     or (u.get("layout_cd") and CFG.get("contas_ignoradas"))),
         "atualizado_em": agora_iso(),
         "meses": registros,
@@ -679,13 +738,16 @@ def lista_pagamentos(u, ano, mes, restos_boi=False, desconsiderados=False):
     lanc_ignorados = {int(c) for c in u.get("lancamentos_ignorados", []) if c is not None}
     marcadas = u.get("transferencias_marcadas")
     marcadas_rodape = _marcadas(u)  # código -> rodapé da nota
+    socios = _socios(u)  # código -> motivo
     if desconsiderados:
         ign = ", ".join(_sql_texto(chave_conta(c)) for c in CFG.get("contas_ignoradas", []) if c) or "N'<nenhuma conta ignorada>'"
-        if marcadas == "excluir":  # as transferências de outra loja também são desconsideradas aqui
-            filtro = f"AND ({CONTA_SEM_ESPACO} IN ({ign}) OR cp.Codigo IN (__LANCAMENTOS__) OR {_sql_codigos(marcadas_rodape)})"
+        # as transferências de outra loja e as despesas dos sócios também são desconsideradas aqui
+        extras = set(socios) | (set(marcadas_rodape) if marcadas == "excluir" else set())
+        if extras or marcadas == "excluir":
+            filtro = f"AND ({CONTA_SEM_ESPACO} IN ({ign}) OR cp.Codigo IN (__LANCAMENTOS__) OR {_sql_codigos(extras)})"
         else:
             filtro = f"AND ({CONTA_SEM_ESPACO} IN ({ign}) OR cp.Codigo IN (__LANCAMENTOS__)) __SOMENTE__"
-    rows = consultar(_fonte_pagamentos(u), _formatar(SQL_LISTA.replace("__FILTRO__", filtro), u, marcadas_rodape),
+    rows = consultar(_fonte_pagamentos(u), _formatar(SQL_LISTA.replace("__FILTRO__", filtro), u, marcadas_rodape, socios),
                      (_dt(ini), _dt(fim)))
     fatores = _fatores(u)
     linhas = []
@@ -708,7 +770,9 @@ def lista_pagamentos(u, ano, mes, restos_boi=False, desconsiderados=False):
             if rodape:
                 d["observacao"] = f"{d['observacao']} [rodapé da nota: {rodape}]".strip()
         if desconsiderados:
-            if rodape is not None:
+            if codigo in socios:
+                d["origem"] = f"Despesa dos sócios e família ({socios[codigo]})"
+            elif rodape is not None:
                 d["origem"] = "Transferência para outra loja (rodapé ou observação)"
             else:
                 d["origem"] = f"Lançamento desconsiderado (código {codigo})" if codigo in lanc_ignorados else "Conta desconsiderada"

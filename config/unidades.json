@@ -33,6 +33,12 @@
     "palavras": ["FLORES", "LARANJEIRA", "AEROCLUB"]
   },
 
+  "observacao_outra_loja": {
+    "_leia": "Pagamentos da Flores lançados pela Parque Dez em outra conta contábil, mas com 'FLORES -' na observação (ex.: FLORES - SORVETES KIBON). Parque Dez: fora. Flores: entram, na conta em que foram lançados. Parque Dez + Flores: já entram normalmente. Compara em maiúsculas e sem acentos.",
+    "procurar": "FLORES",
+    "regex": "\\bFLORES\\s*-"
+  },
+
   "despesas_socios": {
     "_leia": "Despesas dos sócios e da família: ficam fora das lojas (Visão geral, conta contábil e Pagamentos; aparecem em Lançamentos desconsiderados) e só entram no consolidado. Entram: os fornecedores de cada unidade (despesas_socios.fornecedores na unidade, pois os códigos de Pessoa mudam por banco), as contas abaixo e as observações que casam com as expressões (texto em maiúsculas e sem acentos). 'exceto' tira autorizações (AUT., autorizado), retiradas e compras feitas por eles para a loja (pelo Sr. Jarbas, no cartão do Sr. Jarbas, do Sr. Jarbas para ...).",
     "contas": [
@@ -95,7 +101,7 @@
   },
 
   "unidades": [
-    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada",
+    { "slug": "parque_dez", "nome": "Parque Dez", "servidor": "serverprq10", "banco": "sismoura", "transferencias_marcadas": "excluir", "transferencias_estoque": "enviada", "observacao_outra_loja": "excluir",
       "despesas_socios": {"fornecedores": [3252, 3244], "nomes_fornecedores": {"3252": "JC PARTICIPAÇÕES LTDA", "3244": "SUL AMERICA (plano de saúde)"}} },
     {
       "slug": "parque_dez_flores", "nome": "Parque Dez + Flores", "servidor": "serverprq10", "banco": "sismoura",
@@ -119,6 +125,7 @@
       "pagamentos_de": { "servidor": "serverprq10", "banco": "sismoura" },
       "somente_contas": ["LOJA FLORES FORNECEDOR", "LOJA FLORES - REFORMA/OBRA", "LOJA FLORES - CONTA DE ENERGIA", "LOJA FLORES - SALÁRIOS"],
       "transferencias_marcadas": "incluir",
+      "observacao_outra_loja": "incluir",
       "transferencias_estoque": "recebida",
       "_planilha_recibos": "Recibos pagos em dinheiro no caixa da Flores (não estão em nenhum banco).",
       "planilha_recibos": "dados/recibos_loja_flores.xlsx",

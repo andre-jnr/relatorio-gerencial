@@ -30,6 +30,9 @@ A anterior é guardada em `dados/backups/base_dados_cd_AAAA-MM-DD_HHMMSS.xlsx`, 
 
 A **Parque Dez + Flores** e a **Flores** leem as transferências do CD para a Flores na planilha `dados/base_dados_cd.xlsx`. Por isso funcionam sem o CD na lista: a planilha é um arquivo local e não exige consulta ao banco.
 
+**Pagamentos da Flores em outra conta:** alguns pagamentos da Flores foram lançados pela Parque Dez numa conta qualquer (gôndola, sorvetes, bebidas...), com "FLORES -" na observação.
+Eles saem da Parque Dez (aparecem em "Lançamentos desconsiderados") e entram na Flores, na conta em que foram lançados. Os das contas LOJA FLORES já seguem a regra das contas. A regra é `observacao_outra_loja` no `config/unidades.json`.
+
 **Despesas dos sócios e da família (Parque Dez):** ficam fora dos pagamentos e aparecem em "Lançamentos desconsiderados". Elas só entram no consolidado. Entram nessa regra:
 - os fornecedores JC PARTICIPAÇÕES (3252) e Sul América (3244);
 - a conta INSS - SOCIOS;
